@@ -45,7 +45,7 @@ describe("Order Service Integration Tests", () => {
       price: 150,
       image: "burger.png",
       category: "Burgers",
-      calories: 500
+      calorie: 500,
     });
     sampleFoodId = mockFood._id.toString();
   });

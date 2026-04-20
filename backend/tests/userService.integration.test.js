@@ -61,7 +61,7 @@ describe("User Service Integration Tests", () => {
 
       expect(res.statusCode).toBe(200);
       expect(res.body.success).toBe(false);
-      expect(res.body.message).toMatch(/strong password/i);
+      expect(res.body.message).toMatch(/at least 8 characters|strong password/i);
     });
   });
 

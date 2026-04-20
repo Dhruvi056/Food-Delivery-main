@@ -1,6 +1,3 @@
-import mongoose from "mongoose";
-import userModel from "../models/userModel.js";
-import { connectDB } from "../config/db.js";
 import "dotenv/config";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
@@ -9,14 +6,6 @@ import bcrypt from "bcrypt";
 // or we can test the token generation logic. Here we test the DB and Token logic.
 
 describe("Auth Business Logic & Tokens", () => {
-    beforeAll(async () => {
-        await connectDB();
-    });
-
-    afterAll(async () => {
-        await mongoose.connection.close();
-    });
-
     it("should hash passwords before saving", async () => {
         const password = "mysecretpassword";
         const salt = await bcrypt.genSalt(10);

@@ -9,20 +9,13 @@ jest.unstable_mockModule("fs", () => ({
   unlink: jest.fn((path, cb) => cb(null))
 }));
 
-// Mock 'multer' to intercept file uploads and prevent writing to disk
-jest.unstable_mockModule("multer", () => {
-  const multerMock = () => {
-    return {
-      single: () => (req, res, next) => {
-        req.file = { filename: "mock-image123.png" };
-        next();
-      }
-    };
-  };
-  multerMock.diskStorage = jest.fn();
-  // Return absolute default for ES Module interception
-  return { default: multerMock };
-});
+jest.unstable_mockModule("sharp", () => ({
+  default: jest.fn(() => ({
+    resize: jest.fn().mockReturnThis(),
+    webp: jest.fn().mockReturnThis(),
+    toFile: jest.fn().mockResolvedValue(undefined),
+  })),
+}));
 
 const request = (await import("supertest")).default;
 const { app } = await import("../server.js");
@@ -62,14 +55,14 @@ describe("Food Service Integration Tests", () => {
         .field("description", "A mock pizza")
         .field("price", 299)
         .field("category", "Pizza")
-        .field("calories", 800)
+        .field("calorie", 800)
         // Simulate adding a file so supertest switches to multipart form matching multer's expected structure
         .attach("image", Buffer.from("fake_image_data"), "pizza.png");
 
       expect(res.statusCode).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.message).toBe("Food Added");
-      expect(res.body.data.image).toBe("mock-image123.png"); // Validates Multer Mock fired successfully
+      expect(res.body.data.image).toMatch(/\.webp$/);
 
       sampleFoodId = res.body.data._id;
     });
