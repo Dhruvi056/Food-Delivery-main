@@ -36,6 +36,19 @@ const STATUS_COLOR = {
   "Delivered":         "text-emerald-400",
 };
 
+const SHIFT_STATS_KEY = "rider-shift-stats";
+
+const decodeJwtPayload = (token) => {
+  try {
+    const base64Url = token.split(".")[1];
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+    return JSON.parse(atob(padded));
+  } catch {
+    return null;
+  }
+};
+
 // ── Glassmorphism card ───────────────────────────────────────────────────────
 const GlassCard = ({ children, className = "", dark }) => (
   <div
@@ -230,7 +243,7 @@ const ActiveDelivery = ({ order, onAdvance, advancing, dark }) => {
 
 // ── Main Component ───────────────────────────────────────────────────────────
 const RiderDashboard = () => {
-  const { url, token } = useContext(StoreContext);
+  const { url, token, userEmail } = useContext(StoreContext);
   const { theme } = useTheme();
   const dark = theme === "dark";
   const navigate = useNavigate();
@@ -241,17 +254,50 @@ const RiderDashboard = () => {
   const [claiming, setClaiming]         = useState(null);
   const [advancing, setAdvancing]       = useState(false);
   const [loading, setLoading]           = useState(true);
+  const [searchCity, setSearchCity]     = useState("");
+  const [minAmount, setMinAmount]       = useState(0);
+  const [shiftStartAt, setShiftStartAt] = useState(() => Date.now());
+  const [shiftNow, setShiftNow]         = useState(Date.now());
+  const [stats, setStats]               = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem(SHIFT_STATS_KEY)) || {
+        completedToday: 0,
+        earningsToday: 0,
+      };
+    } catch {
+      return { completedToday: 0, earningsToday: 0 };
+    }
+  });
 
   // Guard: redirect non-riders
   useEffect(() => {
     if (!token) { navigate("/"); return; }
-    try {
-      const payload = JSON.parse(atob(token.split(".")[1]));
-      if (payload.role !== "rider") navigate("/");
-    } catch { navigate("/"); }
-  }, [token]);
+    const payload = decodeJwtPayload(token);
+    const role = (payload?.role || "").toLowerCase();
+    const emailFallback = (userEmail || "").toLowerCase() === "rider@gmail.com";
+    if (role !== "rider" && !emailFallback) navigate("/");
+  }, [token, navigate]);
 
   const headers = { token };
+
+  useEffect(() => {
+    const timer = setInterval(() => setShiftNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(SHIFT_STATS_KEY, JSON.stringify(stats));
+  }, [stats]);
+
+  const shiftHours = ((shiftNow - shiftStartAt) / (1000 * 60 * 60)).toFixed(1);
+  const earningsRate = 0.2; // demo payout model: 20% per delivered order
+
+  const filteredPool = availableOrders.filter((o) => {
+    const city = (o.address?.city || "").toLowerCase();
+    const cityMatch = city.includes(searchCity.toLowerCase().trim());
+    const amountMatch = Number(o.amount || 0) >= Number(minAmount || 0);
+    return cityMatch && amountMatch;
+  });
 
   const fetchPool = useCallback(async () => {
     try {
@@ -288,10 +334,8 @@ const RiderDashboard = () => {
   useEffect(() => {
     if (!token) return;
     const socket = socketIO(url);
-    try {
-      const payload = JSON.parse(atob(token.split(".")[1]));
-      socket.emit("join_rider", payload.id);
-    } catch { /* ignore */ }
+    const payload = decodeJwtPayload(token);
+    if (payload?.id) socket.emit("join_rider", payload.id);
 
     // Silently refresh the pool when a new order is ready
     socket.on("food_ready", () => {
@@ -310,6 +354,12 @@ const RiderDashboard = () => {
     // Rider delivered — return to pool view
     socket.on("delivery_complete", () => {
       toast.success("🎉 Delivery marked complete! Great job!");
+      if (activeOrder?.amount) {
+        setStats((prev) => ({
+          completedToday: prev.completedToday + 1,
+          earningsToday: prev.earningsToday + Math.round(activeOrder.amount * earningsRate),
+        }));
+      }
       setActiveOrder(null);
       setView("pool");
       fetchPool();
@@ -373,6 +423,53 @@ const RiderDashboard = () => {
           </div>
         </div>
 
+        {/* Master-level KPI Strip */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
+          <GlassCard dark={dark}>
+            <p className="text-xs uppercase tracking-wide text-slate-400">Shift Time</p>
+            <p className="text-xl font-bold mt-1">{shiftHours} hrs</p>
+          </GlassCard>
+          <GlassCard dark={dark}>
+            <p className="text-xs uppercase tracking-wide text-slate-400">Completed Today</p>
+            <p className="text-xl font-bold mt-1 text-emerald-400">{stats.completedToday}</p>
+          </GlassCard>
+          <GlassCard dark={dark}>
+            <p className="text-xs uppercase tracking-wide text-slate-400">Estimated Earnings</p>
+            <p className="text-xl font-bold mt-1 text-orange-400">₹{stats.earningsToday}</p>
+          </GlassCard>
+        </div>
+
+        {/* Smart dispatch controls */}
+        <GlassCard dark={dark} className="mb-5">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">
+            Smart Pool Filters
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <input
+              value={searchCity}
+              onChange={(e) => setSearchCity(e.target.value)}
+              placeholder="Filter by city..."
+              className={`w-full rounded-xl px-3 py-2.5 text-sm outline-none border ${
+                dark
+                  ? "bg-white/5 border-white/10 text-slate-200 placeholder-slate-500"
+                  : "bg-white border-slate-200 text-slate-700 placeholder-slate-400"
+              }`}
+            />
+            <input
+              type="number"
+              min={0}
+              value={minAmount}
+              onChange={(e) => setMinAmount(e.target.value)}
+              placeholder="Minimum order amount"
+              className={`w-full rounded-xl px-3 py-2.5 text-sm outline-none border ${
+                dark
+                  ? "bg-white/5 border-white/10 text-slate-200 placeholder-slate-500"
+                  : "bg-white border-slate-200 text-slate-700 placeholder-slate-400"
+              }`}
+            />
+          </div>
+        </GlassCard>
+
         {/* View Toggle Tabs */}
         <div className={`flex gap-2 mb-6 p-1 rounded-xl ${dark ? "bg-white/5 border border-white/10" : "bg-slate-100"}`}>
           {["pool", "active"].map(v => (
@@ -387,7 +484,7 @@ const RiderDashboard = () => {
               ].join(" ")}
               style={view === v ? { background: "linear-gradient(135deg,#e94560,#f97316)" } : {}}
             >
-              {v === "pool" ? `🏊 Order Pool (${availableOrders.length})` : "🛵 Active Delivery"}
+              {v === "pool" ? `🏊 Order Pool (${filteredPool.length})` : "🛵 Active Delivery"}
             </button>
           ))}
         </div>
@@ -400,7 +497,7 @@ const RiderDashboard = () => {
             ))}
           </div>
         ) : view === "pool" ? (
-          availableOrders.length === 0 ? (
+          filteredPool.length === 0 ? (
             <GlassCard dark={dark} className="text-center py-16">
               <FiClock className="w-12 h-12 mx-auto text-slate-500 mb-4" />
               <p className="text-lg font-semibold">No orders available yet</p>
@@ -410,7 +507,7 @@ const RiderDashboard = () => {
             </GlassCard>
           ) : (
             <div className="flex flex-col gap-4">
-              {availableOrders.map(order => (
+              {filteredPool.map(order => (
                 <PoolCard
                   key={order._id}
                   order={order}

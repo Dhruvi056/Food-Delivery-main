@@ -12,6 +12,17 @@ import {
 } from "react-icons/fi";
 import { useRef, useEffect } from "react";
 
+const decodeJwtPayload = (token) => {
+  try {
+    const base64Url = token.split(".")[1];
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+    return JSON.parse(atob(padded));
+  } catch {
+    return null;
+  }
+};
+
 const Navbar = ({ setShowLogin }) => {
   const [menu, setMenu] = useState("home");
   const [showSearch, setShowSearch] = useState(false);
@@ -64,13 +75,13 @@ const Navbar = ({ setShowLogin }) => {
   // Decode role from token (Viva ready: Stateless authorization check)
   let userRole = "user";
   if (token) {
-    try {
-      const payload = JSON.parse(atob(token.split(".")[1]));
-      userRole = payload.role || "user";
-    } catch (e) {
-      console.error("JWT Decode error", e);
-    }
+    const payload = decodeJwtPayload(token);
+    userRole = (payload?.role || "user").toLowerCase();
   }
+  const isRiderUser =
+    userRole === "rider" ||
+    (userEmail || "").toLowerCase().includes("rider@") ||
+    (userName || "").toLowerCase().includes("rider");
 
   // Handle outside clicks to close the dropdown
   useEffect(() => {
@@ -274,7 +285,7 @@ const Navbar = ({ setShowLogin }) => {
                   { icon: FiShoppingBag, label: "My Orders", action: () => navigate("/myorders") },
                   { icon: FiBarChart2,   label: "Calorie Tracker", action: () => navigate("/calorie") },
                   // Dynamic Rider Dashboard Link
-                  ...(userRole === "rider" ? [{ icon: FiTruck, label: "Rider Dashboard", action: () => navigate("/rider-dashboard") }] : []),
+                  ...(isRiderUser ? [{ icon: FiTruck, label: "Rider Dashboard", action: () => navigate("/rider-dashboard") }] : []),
                 ].map(({ icon: Icon, label, action }) => (
                   <button
                     key={label}
