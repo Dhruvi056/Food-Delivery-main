@@ -1,0 +1,349 @@
+import React, { useState, useEffect, useContext } from "react";
+import "./Orders.css"; // kept as fallback
+import axios from "axios";
+import { toast } from "react-toastify";
+import { assets } from "../../assets/assets";
+import { StoreContext } from "../../context/StoreContext";
+import { useNavigate } from "react-router-dom";
+import { io as socketIO } from "socket.io-client";
+import {
+  FiPackage, FiTruck, FiCheckCircle, FiRefreshCw,
+  FiDollarSign, FiSearch, FiXCircle, FiUser, FiMapPin,
+  FiPhone, FiAlertCircle,
+} from "react-icons/fi";
+
+// ── Status config ──────────────────────────────────────────────────────────────
+const STATUS_CONFIG = {
+  "Food Processing": { color: "text-orange-400", bg: "bg-orange-500/15", border: "border-orange-500/30", dot: "bg-orange-400", icon: FiPackage },
+  "Out for delivery": { color: "text-blue-400",   bg: "bg-blue-500/15",   border: "border-blue-500/30",   dot: "bg-blue-400",   icon: FiTruck },
+  "Delivered":        { color: "text-emerald-400", bg: "bg-emerald-500/15",border: "border-emerald-500/30",dot: "bg-emerald-400",icon: FiCheckCircle },
+  "Refunded":         { color: "text-purple-400",  bg: "bg-purple-500/15", border: "border-purple-500/30", dot: "bg-purple-400", icon: FiRefreshCw },
+  "Cancelled":        { color: "text-red-400",     bg: "bg-red-500/15",    border: "border-red-500/30",    dot: "bg-red-400",    icon: FiXCircle },
+};
+
+const getMeta = (status) => STATUS_CONFIG[status] || STATUS_CONFIG["Food Processing"];
+
+// ── Live ping badge ────────────────────────────────────────────────────────────
+const LiveBadge = () => (
+  <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/25 text-emerald-400 text-[10px] font-bold">
+    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+    LIVE
+  </span>
+);
+
+// ── Order Row Card ─────────────────────────────────────────────────────────────
+const OrderCard = ({ order, onStatusChange, onRefund, isHighlighted }) => {
+  const meta = getMeta(order.status);
+  const StatusIcon = meta.icon;
+  const orderDate = new Date(order.date).toLocaleDateString("en-IN", {
+    day: "numeric", month: "short", year: "numeric",
+  });
+
+  return (
+    <div className={[
+      "rounded-2xl border p-5 transition-all duration-500 animate-fade-in",
+      "bg-brand-card border-brand-border hover:border-brand-accent/30",
+      isHighlighted ? "ring-2 ring-brand-accent/50 shadow-glow-accent" : "",
+    ].join(" ")}>
+
+      {/* ── Header ── */}
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div className="flex items-center gap-3">
+          <div className={`w-9 h-9 rounded-xl flex items-center justify-center border ${meta.bg} ${meta.border}`}>
+            <StatusIcon className={`w-4 h-4 ${meta.color}`} />
+          </div>
+          <div>
+            <p className="text-xs font-mono text-brand-muted">#{String(order._id).slice(-8).toUpperCase()}</p>
+            <p className="text-xs text-slate-500 mt-0.5">{orderDate}</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          {/* Payment badge */}
+          <span className={`text-[10px] px-2.5 py-1 rounded-full font-semibold border ${
+            order.payment
+              ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/25"
+              : "text-yellow-400 bg-yellow-500/10 border-yellow-500/25"
+          }`}>
+            {order.payment ? "✓ Paid" : "⏳ Pending"}
+          </span>
+          {order.paymentMethod === "COD" && (
+            <span className="text-[10px] px-2.5 py-1 rounded-full font-bold text-amber-400 bg-amber-500/10 border border-amber-500/25">
+              💵 Collect Cash
+            </span>
+          )}
+          {/* Status pill */}
+          <span className={`flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-full font-bold border ${meta.bg} ${meta.border} ${meta.color}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${meta.dot}`} />
+            {order.status}
+          </span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* ── Left: Items ── */}
+        <div className="rounded-xl bg-white/4 border border-brand-border p-3.5">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-muted mb-2.5">
+            Items · {order.items.length}
+          </p>
+          <div className="space-y-1.5">
+            {order.items.map((item, i) => (
+              <div key={i} className="flex items-center justify-between">
+                <span className="text-sm text-slate-300 font-medium">{item.name}</span>
+                <span className="text-xs text-brand-muted">×{item.quantity}</span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 pt-3 border-t border-brand-border flex items-center justify-between">
+            <span className="text-xs text-brand-muted">Total</span>
+            <span className="font-bold text-brand-accent">₹{order.amount}</span>
+          </div>
+        </div>
+
+        {/* ── Right: Customer & Controls ── */}
+        <div className="flex flex-col gap-3">
+          {/* Customer */}
+          <div className="rounded-xl bg-white/4 border border-brand-border p-3.5 space-y-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-muted mb-1">Customer</p>
+            <div className="flex items-center gap-2 text-sm text-slate-300">
+              <FiUser className="w-3.5 h-3.5 text-brand-muted shrink-0" />
+              {order.address.firstName} {order.address.lastName}
+            </div>
+            <div className="flex items-start gap-2 text-xs text-brand-muted">
+              <FiMapPin className="w-3 h-3 mt-0.5 shrink-0" />
+              <span>{order.address.street}, {order.address.city}, {order.address.state}</span>
+            </div>
+            {order.address.phone && (
+              <div className="flex items-center gap-2 text-xs text-brand-muted">
+                <FiPhone className="w-3 h-3 shrink-0" />
+                {order.address.phone}
+              </div>
+            )}
+          </div>
+
+          {/* Status selector */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-semibold uppercase tracking-wider text-brand-muted">Update Status</label>
+            <select
+              value={order.status}
+              onChange={(e) => onStatusChange(e, order._id)}
+              disabled={order.isRefunded || order.status === "Refunded" || order.status === "Cancelled"}
+              className="w-full px-3 py-2.5 bg-brand-cardHover border border-brand-border rounded-xl text-white text-sm outline-none focus:border-brand-accent transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <option value="Food Processing">Food Processing</option>
+              <option value="Out for delivery">Out for Delivery</option>
+              <option value="Delivered">Delivered</option>
+              <option value="Refunded" disabled>Refunded</option>
+            </select>
+          </div>
+
+          {/* Refund / Refunded info */}
+          {order.payment && !order.isRefunded && order.status !== "Refunded" && order.status !== "Cancelled" && (
+            <button
+              onClick={() => onRefund(order._id)}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold text-red-400 border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 transition-all duration-200 active:scale-95"
+            >
+              <FiDollarSign className="w-3.5 h-3.5" />
+              Issue Refund
+            </button>
+          )}
+          {order.isRefunded && (
+            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-purple-500/10 border border-purple-500/25">
+              <FiAlertCircle className="text-purple-400 w-4 h-4 shrink-0" />
+              <p className="text-xs font-semibold text-purple-400">Refunded · ₹{order.refundAmount}</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── Orders Page ────────────────────────────────────────────────────────────────
+const Orders = ({ url }) => {
+  const navigate = useNavigate();
+  const { token, admin } = useContext(StoreContext);
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [newOrderIds, setNewOrderIds] = useState(new Set());
+
+  const fetchAllOrder = async () => {
+    const res = await axios.get(`${url}/api/order/list`, { headers: { token } });
+    if (res.data.success) setOrders(res.data.data);
+    setLoading(false);
+  };
+
+  const statusHandler = async (e, orderId) => {
+    const res = await axios.post(
+      `${url}/api/order/status`,
+      { orderId, status: e.target.value },
+      { headers: { token } }
+    );
+    if (res.data.success) { toast.success(res.data.message); await fetchAllOrder(); }
+    else toast.error(res.data.message);
+  };
+
+  const refundHandler = async (orderId) => {
+    if (!window.confirm("Issue a full refund for this order?")) return;
+    try {
+      const res = await axios.post(`${url}/api/order/refund`, { orderId, reason: "Requested by Admin" }, { headers: { token } });
+      if (res.data.success) { toast.success("Refund processed!"); await fetchAllOrder(); }
+      else toast.error(res.data.message || "Refund failed");
+    } catch { toast.error("Error during refund"); }
+  };
+
+  useEffect(() => {
+    if (!admin && !token) { toast.error("Please login first"); navigate("/"); }
+    fetchAllOrder();
+  }, []);
+
+  // Socket.io — real-time new orders
+  useEffect(() => {
+    if (!token) return;
+    const socket = socketIO(url);
+    socket.emit("join_admin");
+    socket.on("new_order", (newOrder) => {
+      toast.success("🆕 New order received!", { toastId: `new_order_${newOrder.orderId}` });
+      setNewOrderIds(prev => new Set([...prev, String(newOrder.orderId)]));
+      fetchAllOrder();
+    });
+    return () => socket.disconnect();
+  }, [token, url]);
+
+  const filterTabs = ["All", "Food Processing", "Out for delivery", "Delivered", "Refunded", "Cancelled"];
+
+  const filtered = orders.filter(o => {
+    const name = `${o.address?.firstName || ""} ${o.address?.lastName || ""}`.toLowerCase();
+    const matchSearch = name.includes(search.toLowerCase()) ||
+      String(o._id).includes(search) ||
+      o.items.some(item => item.name.toLowerCase().includes(search.toLowerCase()));
+    const matchStatus = statusFilter === "All" || o.status === statusFilter;
+    return matchSearch && matchStatus;
+  });
+
+  const stats = {
+    total:      orders.length,
+    processing: orders.filter(o => o.status === "Food Processing").length,
+    delivered:  orders.filter(o => o.status === "Delivered").length,
+    revenue:    orders.filter(o => o.payment).reduce((s, o) => s + o.amount, 0),
+  };
+
+  return (
+    <div className="flex-1 p-6 overflow-y-auto bg-brand-dark min-h-[calc(100vh-3.5rem)]">
+      <div className="max-w-5xl mx-auto animate-fade-in">
+
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+          <div>
+            <h1 className="text-2xl font-bold text-white flex items-center gap-3">
+              <FiPackage className="text-brand-accent" />
+              Order Management
+              <LiveBadge />
+            </h1>
+            <p className="text-sm text-brand-muted mt-1">{orders.length} total orders</p>
+          </div>
+          <button onClick={fetchAllOrder} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-brand-muted border border-brand-border hover:border-brand-accent hover:text-brand-accent transition-all duration-200">
+            <FiRefreshCw className="w-4 h-4" /> Refresh
+          </button>
+        </div>
+
+        {/* Stats row */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+          {[
+            { label: "Total Orders",  value: stats.total,      color: "text-brand-accent", bg: "bg-brand-accent/15", icon: FiPackage },
+            { label: "Processing",    value: stats.processing, color: "text-orange-400",   bg: "bg-orange-500/15",   icon: FiTruck },
+            { label: "Delivered",     value: stats.delivered,  color: "text-emerald-400",  bg: "bg-emerald-500/15",  icon: FiCheckCircle },
+            { label: "Revenue",       value: `₹${stats.revenue.toLocaleString()}`, color: "text-yellow-400", bg: "bg-yellow-500/15", icon: FiDollarSign },
+          ].map(({ label, value, color, bg, icon: Icon }) => (
+            <div key={label} className="rounded-xl p-4 bg-brand-card border border-brand-border flex items-center gap-3">
+              <div className={`w-9 h-9 rounded-lg ${bg} flex items-center justify-center shrink-0`}>
+                <Icon className={`w-4 h-4 ${color}`} />
+              </div>
+              <div>
+                <p className={`text-lg font-bold leading-none ${color}`}>{value}</p>
+                <p className="text-[10px] text-brand-muted mt-1">{label}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Search + Filter strip */}
+        <div className="flex flex-col sm:flex-row gap-3 mb-5">
+          <div className="relative flex-1">
+            <FiSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-brand-muted w-4 h-4" />
+            <input
+              type="text" value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Search by customer, order ID, or item…"
+              className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-brand-border rounded-xl text-white placeholder-brand-muted text-sm outline-none focus:border-brand-accent transition-all"
+            />
+          </div>
+        </div>
+
+        {/* Filter tabs */}
+        <div className="flex gap-2 overflow-x-auto pb-2 mb-5 scrollbar-hide">
+          {filterTabs.map(tab => (
+            <button
+              key={tab} onClick={() => setStatusFilter(tab)}
+              className={[
+                "px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap border shrink-0 transition-all duration-200",
+                statusFilter === tab
+                  ? "bg-brand-accent text-white border-brand-accent shadow-glow-accent"
+                  : "text-brand-muted border-brand-border hover:border-brand-accent hover:text-brand-accent",
+              ].join(" ")}
+            >
+              {tab}
+              <span className="ml-1.5 opacity-60">
+                {tab === "All" ? orders.length : orders.filter(o => o.status === tab).length}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* Orders grid */}
+        {loading ? (
+          <div className="space-y-4">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="rounded-2xl bg-brand-card border border-brand-border p-5 animate-pulse">
+                <div className="flex gap-3 mb-4">
+                  <div className="w-9 h-9 rounded-xl bg-brand-border" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-3 bg-brand-border rounded w-1/3" />
+                    <div className="h-3 bg-brand-border rounded w-1/4" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="h-24 bg-brand-border rounded-xl" />
+                  <div className="h-24 bg-brand-border rounded-xl" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-20 rounded-2xl bg-brand-card border border-brand-border">
+            <FiPackage className="w-12 h-12 mx-auto text-brand-muted mb-4 opacity-40" />
+            <p className="text-lg font-semibold text-white">No orders found</p>
+            <p className="text-sm text-brand-muted mt-1">
+              {search ? `No results for "${search}"` : "No orders match this filter"}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {filtered.map((order, i) => (
+              <OrderCard
+                key={order._id || i}
+                order={order}
+                onStatusChange={statusHandler}
+                onRefund={refundHandler}
+                isHighlighted={newOrderIds.has(String(order._id))}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default Orders;

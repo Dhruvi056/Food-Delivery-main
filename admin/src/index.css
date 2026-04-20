@@ -1,0 +1,83 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@100..900&display=swap");
+
+/* ── Tailwind CSS ─────────────────────────────────────────────────────────── */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Dark mode global override ─────────────────────────────────────────────── */
+html, body, #root {
+  height: 100%;
+}
+body {
+  background-color: #0a0a0f;
+  color: #f1f5f9;
+  transition: background-color 0.3s ease;
+}
+
+:root {
+    --admin-primary: #ff6b35;
+    --admin-primary-dark: #e85d26;
+    --admin-accent: #e94560;
+    --admin-gradient: linear-gradient(135deg, #ff6b35 0%, #e94560 100%);
+    --admin-dark: #1a1a2e;
+    --admin-dark-2: #16213e;
+    --admin-dark-3: #0f3460;
+    --admin-text: #2d3436;
+    --admin-text-muted: #636e72;
+    --admin-bg: #f5f6fa;
+    --admin-card: #ffffff;
+    --admin-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+    --admin-radius: 12px;
+    --admin-transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+* {
+    padding: 0;
+    margin: 0;
+    box-sizing: border-box;
+    font-family: 'Inter', 'Outfit', sans-serif;
+}
+
+body {
+    min-height: 100vh;
+    background-color: var(--admin-bg);
+    -webkit-font-smoothing: antialiased;
+}
+
+a {
+    text-decoration: none;
+    color: inherit;
+}
+
+hr {
+    border: none;
+    height: 1px;
+    background-color: #eee;
+}
+
+.app-content {
+    display: flex;
+}
+
+.flex-col {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.cursor {
+    cursor: pointer;
+}
+
+@keyframes fadeIn {
+    0% {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

@@ -1,0 +1,157 @@
+.login-popup {
+    position: fixed;
+    z-index: 200;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(8px);
+    display: grid;
+    animation: fadeIn 0.3s ease;
+}
+
+.login-popup-container {
+    place-self: center;
+    width: max(24vw, 360px);
+    color: var(--text-muted);
+    background: rgba(255, 255, 255, 0.97);
+    backdrop-filter: blur(20px);
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    padding: 32px 36px;
+    border-radius: var(--radius-lg);
+    font-size: 14px;
+    animation: slideUp 0.4s ease;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.login-popup-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--text-dark);
+}
+
+.login-popup-title h2 {
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+}
+
+.login-popup-title img {
+    width: 18px;
+    cursor: pointer;
+    opacity: 0.5;
+    transition: var(--transition);
+}
+
+.login-popup-title img:hover {
+    opacity: 1;
+    transform: rotate(90deg);
+}
+
+.login-popup-inputs {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.login-popup-inputs input {
+    outline: none;
+    border: 1.5px solid #e8e8e8;
+    padding: 12px 16px;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    transition: var(--transition);
+    background: #fafafa;
+}
+
+.login-popup-inputs input:focus {
+    border-color: var(--primary);
+    background: white;
+    box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.1);
+}
+
+.login-popup-container button {
+    border: none;
+    padding: 13px;
+    border-radius: var(--radius-sm);
+    color: white;
+    background: var(--gradient-primary);
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+    letter-spacing: 0.3px;
+    box-shadow: 0 4px 15px rgba(255, 107, 53, 0.3);
+}
+
+.login-popup-container button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 25px rgba(255, 107, 53, 0.4);
+}
+
+.login-popup-condition {
+    display: flex;
+    align-items: start;
+    gap: 10px;
+    margin-top: -10px;
+}
+
+.login-popup-condition input {
+    margin-top: 4px;
+    accent-color: var(--primary);
+}
+
+.login-popup p span {
+    color: var(--primary);
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.login-popup p span:hover {
+    color: var(--primary-dark);
+    text-decoration: underline;
+}
+
+/* 2FA OTP Styles */
+.otp-message {
+    color: var(--text-dark, #2d3436);
+    font-size: 14px;
+    line-height: 1.6;
+    text-align: center;
+    padding: 8px 0;
+}
+
+.otp-message strong {
+    color: var(--primary, #ff6b35);
+}
+
+.otp-input {
+    text-align: center !important;
+    font-size: 28px !important;
+    font-weight: 700 !important;
+    letter-spacing: 12px !important;
+    padding: 16px !important;
+    border: 2px solid #e8e8e8 !important;
+    border-radius: 12px !important;
+    background: #fafafa !important;
+    transition: all 0.3s ease !important;
+}
+
+.otp-input:focus {
+    border-color: var(--primary, #ff6b35) !important;
+    background: white !important;
+    box-shadow: 0 0 0 4px rgba(255, 107, 53, 0.15) !important;
+}
+
+.otp-hint {
+    color: var(--text-muted, #636e72);
+    font-size: 12px;
+    text-align: center;
+    line-height: 1.5;
+}

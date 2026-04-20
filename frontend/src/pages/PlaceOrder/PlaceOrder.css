@@ -1,0 +1,167 @@
+.place-order {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: 50px;
+    margin-top: 80px;
+    animation: fadeIn 0.5s ease;
+}
+
+.place-order-left {
+    width: 100%;
+    max-width: max(30%, 500px);
+    background: var(--bg-card);
+    padding: 32px;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+}
+
+.place-order-left .title {
+    font-size: 26px;
+    font-weight: 700;
+    margin-bottom: 32px;
+    color: var(--text-dark);
+    letter-spacing: -0.3px;
+}
+
+.place-order-left input {
+    margin-bottom: 14px;
+    width: 100%;
+    padding: 12px 16px;
+    border: 1px solid #cbd5e1;
+    border-radius: var(--radius-sm);
+    outline: none;
+    font-size: 14px;
+    transition: var(--transition);
+    background: #fafafa;
+}
+
+.place-order-left input:focus {
+    border-color: var(--primary);
+    background: white;
+    box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.1);
+}
+
+.place-order-left .multi-fields {
+    display: flex;
+    gap: 12px;
+}
+
+.place-order-right {
+    width: 100%;
+    max-width: max(40%, 500px);
+}
+
+.place-order .cart-total {
+    background: var(--bg-card);
+    padding: 28px;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+}
+
+.place-order .cart-total .checkout-btn {
+    margin-top: 20px;
+}
+
+@media (max-width: 800px) {
+    .place-order {
+        flex-direction: column;
+        margin-top: 50px;
+    }
+
+    .place-order-left {
+        max-width: 100%;
+        padding: 24px;
+    }
+
+    .place-order-right {
+        max-width: 100%;
+    }
+
+    .place-order-left .title {
+        font-size: 22px;
+    }
+}
+
+/* ── Light Mode Extracted Styles ── */
+.address-select {
+    padding: 10px;
+    width: 100%;
+    border-radius: 4px;
+    border: 1px solid #cbd5e1;
+    outline: none;
+    background: #fafafa;
+    color: var(--text-dark);
+}
+
+.save-address-checkbox {
+    margin-top: 15px;
+    margin-bottom: 10px;
+}
+.save-address-checkbox label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    color: #666;
+}
+.save-address-checkbox input {
+    cursor: pointer;
+    width: auto;
+    margin-bottom: 0;
+}
+
+.payment-method-selector {
+    margin-top: 20px;
+    margin-bottom: 20px;
+}
+.payment-options {
+    display: flex;
+    gap: 20px;
+    margin-top: 10px;
+}
+.payment-options label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 15px;
+    color: var(--text-dark);
+}
+
+/* ── Dark Mode Overrides ── */
+html.dark .place-order-left,
+html.dark .place-order .cart-total {
+    background-color: #1a1a1a;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+html.dark .place-order-left .title,
+html.dark .place-order .cart-total h2,
+html.dark .place-order .cart-total b {
+    color: #f8fafc;
+}
+
+html.dark .place-order-left input,
+html.dark .address-select {
+    background-color: #2a2a2a;
+    border-color: #333;
+    color: #e2e8f0;
+}
+
+html.dark .place-order-left input:focus,
+html.dark .address-select:focus {
+    border-color: var(--accent);
+    background-color: #333;
+    box-shadow: 0 0 0 2px rgba(233, 69, 96, 0.2);
+}
+
+html.dark .save-address-checkbox label,
+html.dark .payment-options label,
+html.dark .cart-total-details p {
+    color: #cbd5e1;
+}
+
+html.dark .cart-total-details hr {
+    border-color: rgba(255, 255, 255, 0.1);
+}

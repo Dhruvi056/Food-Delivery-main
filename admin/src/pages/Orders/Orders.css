@@ -1,0 +1,89 @@
+.order {
+    animation: fadeIn 0.4s ease;
+}
+
+.order-item {
+    display: grid;
+    grid-template-columns: 0.5fr 2fr 1fr 1fr 1fr;
+    align-items: start;
+    gap: 24px;
+    background: var(--admin-card);
+    border-radius: var(--admin-radius);
+    box-shadow: var(--admin-shadow);
+    padding: 22px 24px;
+    margin: 12px 0;
+    font-size: 14px;
+    color: var(--admin-text);
+    transition: var(--admin-transition);
+    border-left: 4px solid var(--admin-primary);
+}
+
+.order-item:hover {
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    transform: translateX(2px);
+}
+
+.order-item img {
+    width: 48px;
+    opacity: 0.7;
+}
+
+.order-item-food,
+.order-item-name {
+    font-weight: 600;
+}
+
+.order-item-name {
+    margin-top: 20px;
+    margin-bottom: 4px;
+    color: var(--admin-text);
+}
+
+.order-item-address {
+    margin-bottom: 8px;
+    color: var(--admin-text-muted);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.order-item select {
+    background: linear-gradient(135deg, #fff5f0 0%, #ffe8de 100%);
+    border: 1.5px solid #ffd4c4;
+    width: max(11vw, 130px);
+    padding: 10px 12px;
+    outline: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--admin-text);
+    cursor: pointer;
+    transition: var(--admin-transition);
+    appearance: auto;
+}
+
+.order-item select:focus {
+    border-color: var(--admin-primary);
+    box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.1);
+}
+
+.order-item select:hover {
+    border-color: var(--admin-primary);
+}
+
+@media (max-width: 1000px) {
+    .order-item {
+        font-size: 12px;
+        grid-template-columns: 0.5fr 2fr 1fr;
+        padding: 16px;
+        gap: 16px;
+    }
+
+    .order-item select {
+        padding: 8px;
+        font-size: 12px;
+    }
+
+    .order-item img {
+        width: 40px;
+    }
+}

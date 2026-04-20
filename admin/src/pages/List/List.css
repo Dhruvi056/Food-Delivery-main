@@ -1,0 +1,136 @@
+.list {
+    animation: fadeIn 0.4s ease;
+}
+
+.list-table-format {
+    display: grid;
+    grid-template-columns: 0.5fr 1.5fr 1fr 1fr 0.5fr 0.5fr 0.5fr;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 20px;
+    font-size: 13px;
+    color: var(--admin-text);
+    transition: var(--admin-transition);
+}
+
+.list-table-format:not(.title) {
+    background: var(--admin-card);
+    margin-bottom: 8px;
+    border-radius: var(--admin-radius);
+    box-shadow: var(--admin-shadow);
+    border-left: 3px solid transparent;
+}
+
+.list-table-format:not(.title):hover {
+    border-left-color: var(--admin-primary);
+    transform: translateX(2px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.sold-out-row {
+    opacity: 0.6;
+    background-color: #f9f9f9 !important;
+}
+
+/* Toggle Switch Styling */
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 40px;
+    height: 20px;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: .4s;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 14px;
+    width: 14px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .4s;
+}
+
+input:checked+.slider {
+    background-color: #ff4c24;
+}
+
+input:focus+.slider {
+    box-shadow: 0 0 1px #ff4c24;
+}
+
+input:checked+.slider:before {
+    transform: translateX(20px);
+}
+
+.slider.round {
+    border-radius: 34px;
+}
+
+.slider.round:before {
+    border-radius: 50%;
+}
+
+.list-table-format.title {
+    background: linear-gradient(135deg, #f8f9fa 0%, #f0f0f5 100%);
+    border-radius: var(--admin-radius);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-size: 12px;
+    color: var(--admin-text-muted);
+    margin-bottom: 12px;
+}
+
+.list-table-format img {
+    width: 50px;
+    border-radius: 8px;
+    object-fit: cover;
+}
+
+.list-table-format .cross {
+    cursor: pointer;
+    color: var(--admin-accent);
+    font-weight: 700;
+    font-size: 16px;
+    transition: var(--admin-transition);
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+}
+
+.list-table-format .cross:hover {
+    background: #ffe8e8;
+    transform: scale(1.15);
+}
+
+@media (max-width: 600px) {
+    .list-table-format {
+        grid-template-columns: 1fr 3fr 1fr;
+        gap: 15px;
+    }
+
+    .list-table-format.title {
+        display: none;
+    }
+}

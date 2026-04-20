@@ -1,0 +1,132 @@
+.add {
+    width: 100%;
+    max-width: 680px;
+    margin-left: max(3vw, 25px);
+    margin-top: 32px;
+    color: var(--admin-text);
+    font-size: 14px;
+    animation: fadeIn 0.4s ease;
+}
+
+.add h3 {
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 24px;
+    color: var(--admin-text);
+}
+
+.add form {
+    gap: 20px;
+    background: var(--admin-card);
+    padding: 32px;
+    border-radius: var(--admin-radius);
+    box-shadow: var(--admin-shadow);
+}
+
+.add-img-upload {
+    margin-bottom: 8px;
+}
+
+.add-img-upload img {
+    width: 110px;
+    border-radius: var(--admin-radius);
+    border: 2px dashed #ddd;
+    padding: 4px;
+    transition: var(--admin-transition);
+    cursor: pointer;
+}
+
+.add-img-upload img:hover {
+    border-color: var(--admin-primary);
+}
+
+.add label {
+    font-weight: 600;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--admin-text-muted);
+    margin-bottom: 4px;
+}
+
+.add-product-name,
+.add-product-description {
+    width: max(50%, 280px);
+}
+
+.add-product-name input,
+.add-product-description textarea {
+    padding: 10px 14px;
+    border: 1.5px solid #e8e8e8;
+    border-radius: 8px;
+    font-size: 14px;
+    transition: var(--admin-transition);
+    background: #fafafa;
+    width: 100%;
+}
+
+.add-product-name input:focus,
+.add-product-description textarea:focus {
+    border-color: var(--admin-primary);
+    background: white;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.1);
+}
+
+.add-category-price {
+    display: flex;
+    gap: 24px;
+}
+
+.add-category-price select,
+.add-category-price input {
+    max-width: 150px;
+    padding: 10px 14px;
+    border: 1.5px solid #e8e8e8;
+    border-radius: 8px;
+    font-size: 14px;
+    background: #fafafa;
+    transition: var(--admin-transition);
+}
+
+.add-category-price select:focus,
+.add-category-price input:focus {
+    border-color: var(--admin-primary);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.1);
+}
+
+.add-btn {
+    max-width: 160px;
+    border: none;
+    padding: 12px 24px;
+    background: var(--admin-gradient);
+    color: white;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 14px;
+    border-radius: 8px;
+    transition: var(--admin-transition);
+    box-shadow: 0 4px 15px rgba(255, 107, 53, 0.25);
+    letter-spacing: 0.3px;
+}
+
+.add-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 25px rgba(255, 107, 53, 0.35);
+}
+
+@media (max-width: 400px) {
+    .add {
+        margin-left: 15px;
+    }
+
+    .add form {
+        padding: 20px;
+    }
+
+    .add-product-name,
+    .add-product-description {
+        width: max(40%, 220px);
+    }
+}

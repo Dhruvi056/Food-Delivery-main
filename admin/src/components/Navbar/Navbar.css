@@ -1,0 +1,43 @@
+.navbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 4%;
+    background: linear-gradient(135deg, var(--admin-dark) 0%, var(--admin-dark-2) 100%);
+    box-shadow: 0 2px 20px rgba(0, 0, 0, 0.15);
+    position: relative;
+    z-index: 10;
+}
+
+.navbar::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--admin-gradient);
+}
+
+.navbar .logo {
+    width: max(10%, 80px);
+    filter: brightness(10);
+}
+
+.navbar .profile {
+    width: 38px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    transition: var(--admin-transition);
+}
+
+.navbar .profile:hover {
+    border-color: var(--admin-primary);
+    transform: scale(1.05);
+}
+
+.login-conditon {
+    font-size: 18px;
+    color: rgba(255, 255, 255, 0.85);
+    font-weight: 500;
+}
