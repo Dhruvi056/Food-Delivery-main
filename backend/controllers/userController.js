@@ -36,7 +36,12 @@ const handleServiceError = (res, error, fallback = "An unexpected error occurred
 const loginUser = async (req, res) => {
   try {
     const result = await initiateLogin(req.body.email, req.body.password);
-    res.json({ success: true, ...result, message: "Verification code sent to your email" });
+    if (result.skip2FA) {
+      // SMTP not configured — tokens already issued, login complete
+      return res.json({ success: true, ...result, message: "Login successful" });
+    }
+    // Normal 2FA flow — OTP sent to email
+    res.json({ success: true, requires2FA: true, message: "Verification code sent to your email" });
   } catch (error) {
     handleServiceError(res, error, "Login error");
   }

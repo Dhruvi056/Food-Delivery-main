@@ -1,5 +1,5 @@
 import jwt from "jsonwebtoken";
-import userModel from "../models/userModel.js";
+import insforge from "../config/insforge.js";
 
 const authMiddleware = async (req, res, next) => {
   const { token } = req.headers;
@@ -33,7 +33,12 @@ const authMiddleware = async (req, res, next) => {
  */
 export const requireRole = (...roles) => async (req, res, next) => {
   try {
-    const user = await userModel.findById(req.userId).select("role");
+    const { data: user } = await insforge.database
+      .from("users")
+      .select("role")
+      .eq("id", req.userId)
+      .maybeSingle();
+
     if (!user || !roles.includes(user.role)) {
       return res.status(403).json({ success: false, message: "Forbidden: insufficient permissions." });
     }

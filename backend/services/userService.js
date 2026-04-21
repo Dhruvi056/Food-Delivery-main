@@ -1,4 +1,3 @@
-import userModel from "../models/userModel.js";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 import validator from "validator";
@@ -8,6 +7,7 @@ import {
   send2FAEmail,
   sendPasswordResetEmail,
 } from "../utils/emailService.js";
+import insforge from "../config/insforge.js";
 
 // ── Token Helpers ──────────────────────────────────────────────────────────────
 
@@ -20,23 +20,76 @@ export const createRefreshToken = (id) => {
   return jwt.sign({ id }, secret, { expiresIn: "7d" });
 };
 
+// ── DB Helpers ─────────────────────────────────────────────────────────────────
+
+const findUserByEmail = async (email) => {
+  const { data, error } = await insforge.database
+    .from("users")
+    .select()
+    .eq("email", email)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data;
+};
+
+const findUserById = async (id) => {
+  const { data, error } = await insforge.database
+    .from("users")
+    .select()
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data;
+};
+
+const updateUser = async (id, fields) => {
+  const { data, error } = await insforge.database
+    .from("users")
+    .update(fields)
+    .eq("id", id)
+    .select()
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data;
+};
+
 // ── Service Functions ──────────────────────────────────────────────────────────
 
 /**
  * Step 1 of login — validates credentials and dispatches the 2FA OTP email.
- * Returns { requires2FA: true } on success.
+ * If SMTP is not configured, skips 2FA and returns tokens directly.
  */
 export const initiateLogin = async (email, password) => {
-  const user = await userModel.findOne({ email });
+  const user = await findUserByEmail(email);
   if (!user) throw new Error("USER_NOT_FOUND");
 
   const isMatch = await bcrypt.compare(password, user.password);
   if (!isMatch) throw new Error("INVALID_CREDENTIALS");
 
+  // If SMTP is not configured, skip 2FA and issue tokens directly
+  const smtpConfigured =
+    process.env.SMTP_USER &&
+    process.env.SMTP_PASS &&
+    !process.env.SMTP_USER.includes("your_email") &&
+    !process.env.SMTP_PASS.includes("your_email_app_password");
+
+  if (!smtpConfigured) {
+    console.log("⚠️  SMTP not configured — bypassing 2FA for:", email);
+    const accessToken = createAccessToken(user.id);
+    const refreshToken = createRefreshToken(user.id);
+    const hashedRefresh = await bcrypt.hash(refreshToken, 10);
+    await updateUser(user.id, { refresh_token: hashedRefresh });
+    return { token: accessToken, refreshToken, role: user.role, name: user.name, skip2FA: true };
+  }
+
   const code = generateOTP();
-  user.twoFactorCode = await bcrypt.hash(code, 10);
-  user.twoFactorExpiry = new Date(Date.now() + 10 * 60 * 1000);
-  await user.save();
+  const hashedCode = await bcrypt.hash(code, 10);
+  const expiry = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+
+  await updateUser(user.id, {
+    two_factor_code: hashedCode,
+    two_factor_expiry: expiry,
+  });
 
   await send2FAEmail(email, code);
   return { requires2FA: true };
@@ -46,30 +99,33 @@ export const initiateLogin = async (email, password) => {
  * Step 2 of login — validates the OTP and issues access + refresh tokens.
  */
 export const completeTwoFA = async (email, code) => {
-  const user = await userModel.findOne({ email });
+  const user = await findUserByEmail(email);
   if (!user) throw new Error("USER_NOT_FOUND");
 
-  if (!user.twoFactorCode || !user.twoFactorExpiry) {
+  if (!user.two_factor_code || !user.two_factor_expiry) {
     throw new Error("NO_PENDING_CODE");
   }
 
-  if (new Date() > user.twoFactorExpiry) {
-    user.twoFactorCode = null;
-    user.twoFactorExpiry = null;
-    await user.save();
+  if (new Date() > new Date(user.two_factor_expiry)) {
+    await updateUser(user.id, {
+      two_factor_code: null,
+      two_factor_expiry: null,
+    });
     throw new Error("CODE_EXPIRED");
   }
 
-  const isValid = await bcrypt.compare(code, user.twoFactorCode);
+  const isValid = await bcrypt.compare(code, user.two_factor_code);
   if (!isValid) throw new Error("INVALID_CODE");
 
-  user.twoFactorCode = null;
-  user.twoFactorExpiry = null;
+  const accessToken = createAccessToken(user.id);
+  const refreshToken = createRefreshToken(user.id);
+  const hashedRefresh = await bcrypt.hash(refreshToken, 10);
 
-  const accessToken = createAccessToken(user._id);
-  const refreshToken = createRefreshToken(user._id);
-  user.refreshToken = await bcrypt.hash(refreshToken, 10);
-  await user.save();
+  await updateUser(user.id, {
+    two_factor_code: null,
+    two_factor_expiry: null,
+    refresh_token: hashedRefresh,
+  });
 
   return { token: accessToken, refreshToken, role: user.role, name: user.name };
 };
@@ -78,7 +134,7 @@ export const completeTwoFA = async (email, code) => {
  * Register a new user. Issues tokens directly (no 2FA on first signup).
  */
 export const registerNewUser = async ({ name, email, password }) => {
-  const exists = await userModel.findOne({ email });
+  const exists = await findUserByEmail(email);
   if (exists) throw new Error("USER_EXISTS");
   if (!validator.isEmail(email)) throw new Error("INVALID_EMAIL");
   if (password.length < 8) throw new Error("PASSWORD_TOO_SHORT");
@@ -86,15 +142,20 @@ export const registerNewUser = async ({ name, email, password }) => {
   const salt = await bcrypt.genSalt(Number(process.env.SALT) || 10);
   const hashedPassword = await bcrypt.hash(password, salt);
 
-  const newUser = new userModel({ name, email, password: hashedPassword });
-  const user = await newUser.save();
+  const { data: newUser, error } = await insforge.database
+    .from("users")
+    .insert([{ name, email, password: hashedPassword }])
+    .select()
+    .maybeSingle();
+  if (error) throw new Error(error.message);
 
-  const accessToken = createAccessToken(user._id);
-  const refreshToken = createRefreshToken(user._id);
-  user.refreshToken = await bcrypt.hash(refreshToken, 10);
-  await user.save();
+  const accessToken = createAccessToken(newUser.id);
+  const refreshToken = createRefreshToken(newUser.id);
+  const hashedRefresh = await bcrypt.hash(refreshToken, 10);
 
-  return { token: accessToken, refreshToken, role: user.role, name: user.name };
+  await updateUser(newUser.id, { refresh_token: hashedRefresh });
+
+  return { token: accessToken, refreshToken, role: newUser.role, name: newUser.name };
 };
 
 /**
@@ -112,20 +173,20 @@ export const rotateTokens = async (refreshToken) => {
     throw new Error("INVALID_REFRESH_TOKEN");
   }
 
-  const user = await userModel.findById(decoded.id);
-  if (!user || !user.refreshToken) throw new Error("INVALID_REFRESH_TOKEN");
+  const user = await findUserById(decoded.id);
+  if (!user || !user.refresh_token) throw new Error("INVALID_REFRESH_TOKEN");
 
-  const isValid = await bcrypt.compare(refreshToken, user.refreshToken);
+  const isValid = await bcrypt.compare(refreshToken, user.refresh_token);
   if (!isValid) {
-    user.refreshToken = null;
-    await user.save();
+    await updateUser(user.id, { refresh_token: null });
     throw new Error("TOKEN_REUSE_DETECTED");
   }
 
-  const newAccessToken = createAccessToken(user._id);
-  const newRefreshToken = createRefreshToken(user._id);
-  user.refreshToken = await bcrypt.hash(newRefreshToken, 10);
-  await user.save();
+  const newAccessToken = createAccessToken(user.id);
+  const newRefreshToken = createRefreshToken(user.id);
+  const hashedRefresh = await bcrypt.hash(newRefreshToken, 10);
+
+  await updateUser(user.id, { refresh_token: hashedRefresh });
 
   return { token: newAccessToken, refreshToken: newRefreshToken };
 };
@@ -134,25 +195,29 @@ export const rotateTokens = async (refreshToken) => {
  * Logout — clears the refresh token from the database.
  */
 export const logoutUserById = async (userId) => {
-  await userModel.findByIdAndUpdate(userId, { refreshToken: null });
+  await updateUser(userId, { refresh_token: null });
 };
 
 /**
  * Initiate a password reset — generates a reset token and emails the link.
  */
 export const initiateForgotPassword = async (email) => {
-  const user = await userModel.findOne({ email });
+  const user = await findUserByEmail(email);
   if (!user) throw new Error("USER_NOT_FOUND");
 
   const resetToken = crypto.randomBytes(20).toString("hex");
-  user.resetPasswordToken = crypto
+  const hashedToken = crypto
     .createHash("sha256")
     .update(resetToken)
     .digest("hex");
-  user.resetPasswordExpire = Date.now() + 60 * 60 * 1000;
-  await user.save();
+  const expiry = new Date(Date.now() + 60 * 60 * 1000).toISOString();
 
-  const resetUrl = `http://localhost:5173/reset-password/${resetToken}`;
+  await updateUser(user.id, {
+    reset_password_token: hashedToken,
+    reset_password_expire: expiry,
+  });
+
+  const resetUrl = `${process.env.FRONTEND_URL || "http://localhost:5173"}/reset-password/${resetToken}`;
   await sendPasswordResetEmail(user.email, resetUrl);
 };
 
@@ -160,23 +225,29 @@ export const initiateForgotPassword = async (email) => {
  * Complete a password reset — validates the token and sets the new password.
  */
 export const completePasswordReset = async (token, newPassword) => {
-  const resetPasswordToken = crypto
+  const hashedToken = crypto
     .createHash("sha256")
     .update(token)
     .digest("hex");
 
-  const user = await userModel.findOne({
-    resetPasswordToken,
-    resetPasswordExpire: { $gt: Date.now() },
-  });
+  const { data: users, error } = await insforge.database
+    .from("users")
+    .select()
+    .eq("reset_password_token", hashedToken)
+    .gt("reset_password_expire", new Date().toISOString());
 
+  if (error) throw new Error(error.message);
+  const user = users?.[0];
   if (!user) throw new Error("INVALID_OR_EXPIRED_TOKEN");
 
   const salt = await bcrypt.genSalt(Number(process.env.SALT) || 10);
-  user.password = await bcrypt.hash(newPassword, salt);
-  user.resetPasswordToken = undefined;
-  user.resetPasswordExpire = undefined;
-  await user.save();
+  const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+  await updateUser(user.id, {
+    password: hashedPassword,
+    reset_password_token: null,
+    reset_password_expire: null,
+  });
 };
 
 /**
@@ -186,11 +257,9 @@ export const addUserAddress = async (userId, address) => {
   if (!address.id) {
     address.id = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
   }
-  const user = await userModel.findByIdAndUpdate(
-    userId,
-    { $push: { addresses: address } },
-    { new: true }
-  );
+  const user = await findUserById(userId);
+  const existingAddresses = Array.isArray(user?.addresses) ? user.addresses : [];
+  await updateUser(userId, { addresses: [...existingAddresses, address] });
   return address;
 };
 
@@ -198,15 +267,16 @@ export const addUserAddress = async (userId, address) => {
  * Remove a saved address by its ID.
  */
 export const removeUserAddress = async (userId, addressId) => {
-  await userModel.findByIdAndUpdate(userId, {
-    $pull: { addresses: { id: addressId } },
-  });
+  const user = await findUserById(userId);
+  const existingAddresses = Array.isArray(user?.addresses) ? user.addresses : [];
+  const filtered = existingAddresses.filter((a) => a.id !== addressId);
+  await updateUser(userId, { addresses: filtered });
 };
 
 /**
  * Fetch all saved addresses for a user.
  */
 export const getUserAddresses = async (userId) => {
-  const user = await userModel.findById(userId);
-  return user.addresses || [];
+  const user = await findUserById(userId);
+  return user?.addresses || [];
 };

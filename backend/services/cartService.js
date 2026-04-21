@@ -1,5 +1,4 @@
-import userModel from "../models/userModel.js";
-import foodModel from "../models/foodModel.js";
+import insforge from "../config/insforge.js";
 
 // ── Service Functions ──────────────────────────────────────────────────────────
 
@@ -8,15 +7,29 @@ import foodModel from "../models/foodModel.js";
  * Validates that the item exists, is available, and has stock.
  */
 export const addItemToCart = async (userId, itemId) => {
-  const food = await foodModel.findById(itemId);
+  const { data: food } = await insforge.database
+    .from("foods")
+    .select("id, is_available, stock_count")
+    .eq("id", itemId)
+    .maybeSingle();
+
   if (!food) throw new Error("ITEM_NOT_FOUND");
-  if (food.isAvailable === false || food.stockCount <= 0) throw new Error("ITEM_SOLD_OUT");
+  if (food.is_available === false || food.stock_count <= 0) throw new Error("ITEM_SOLD_OUT");
 
-  const userData = await userModel.findById(userId);
-  const cartData = { ...userData.cartData };
+  const { data: userData } = await insforge.database
+    .from("users")
+    .select("cart_data")
+    .eq("id", userId)
+    .maybeSingle();
 
+  const cartData = { ...(userData?.cart_data || {}) };
   cartData[itemId] = (cartData[itemId] || 0) + 1;
-  await userModel.findByIdAndUpdate(userId, { cartData });
+
+  await insforge.database
+    .from("users")
+    .update({ cart_data: cartData })
+    .eq("id", userId);
+
   return cartData;
 };
 
@@ -25,8 +38,13 @@ export const addItemToCart = async (userId, itemId) => {
  * Deletes the key entirely when quantity reaches zero.
  */
 export const removeItemFromCart = async (userId, itemId) => {
-  const userData = await userModel.findById(userId);
-  const cartData = { ...userData.cartData };
+  const { data: userData } = await insforge.database
+    .from("users")
+    .select("cart_data")
+    .eq("id", userId)
+    .maybeSingle();
+
+  const cartData = { ...(userData?.cart_data || {}) };
 
   if (cartData[itemId] > 1) {
     cartData[itemId] -= 1;
@@ -34,7 +52,11 @@ export const removeItemFromCart = async (userId, itemId) => {
     delete cartData[itemId];
   }
 
-  await userModel.findByIdAndUpdate(userId, { cartData });
+  await insforge.database
+    .from("users")
+    .update({ cart_data: cartData })
+    .eq("id", userId);
+
   return cartData;
 };
 
@@ -42,14 +64,23 @@ export const removeItemFromCart = async (userId, itemId) => {
  * Fetch the current cart for a user.
  */
 export const getUserCart = async (userId) => {
-  const userData = await userModel.findById(userId);
-  return userData.cartData;
+  const { data: userData } = await insforge.database
+    .from("users")
+    .select("cart_data")
+    .eq("id", userId)
+    .maybeSingle();
+
+  return userData?.cart_data || {};
 };
 
 /**
  * Bulk-replace cart (used for re-order from history).
  */
 export const replaceUserCart = async (userId, cartItems) => {
-  await userModel.findByIdAndUpdate(userId, { cartData: cartItems });
+  await insforge.database
+    .from("users")
+    .update({ cart_data: cartItems })
+    .eq("id", userId);
+
   return cartItems;
 };

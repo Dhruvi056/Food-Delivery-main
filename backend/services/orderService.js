@@ -1,5 +1,3 @@
-import orderModel from "../models/orderModel.js";
-import userModel from "../models/userModel.js";
 import Stripe from "stripe";
 import {
   sendOrderConfirmation,
@@ -8,6 +6,7 @@ import {
   sendStatusUpdateSMS,
 } from "../utils/notificationService.js";
 import { computeTax } from "../utils/taxUtils.js";
+import insforge from "../config/insforge.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -17,7 +16,11 @@ const DELIVERY_FEE = 50;
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 const assertAdmin = async (userId) => {
-  const user = await userModel.findById(userId);
+  const { data: user } = await insforge.database
+    .from("users")
+    .select("role")
+    .eq("id", userId)
+    .maybeSingle();
   if (!user || user.role !== "admin") throw new Error("UNAUTHORIZED");
   return user;
 };
@@ -26,52 +29,61 @@ const emitSocketEvent = (io, room, event, payload) => {
   if (io) io.to(room).emit(event, payload);
 };
 
+// Remap DB row → response shape (use _id alias for frontend compatibility)
+const remapOrder = (o) => (o ? { ...o, _id: o.id } : null);
+
 // ── Service Functions ──────────────────────────────────────────────────────────
 
 /**
  * Place an order. Supports both Stripe (returns session URL) and COD.
- * @param {object} body   - req.body (userId, items, address, paymentMethod, etc.)
- * @param {object} io     - Socket.io instance from req.app.get("io")
- * @returns {{ isCOD?, session_url? }}
  */
 export const placeNewOrder = async (body, io) => {
   const subtotal = body.items.reduce(
     (acc, item) => acc + item.price * item.quantity,
     0
   );
-  
+
   let discountValue = 0;
   if (body.promoCode === "BITE20") {
-    discountValue = subtotal * 0.20;
+    discountValue = subtotal * 0.2;
   }
 
   const taxAmount = computeTax(body.address?.state, subtotal);
   const finalAmount = subtotal + taxAmount + DELIVERY_FEE - discountValue;
-  const estimatedDelivery = new Date(Date.now() + 45 * 60 * 1000);
+  const estimatedDelivery = new Date(Date.now() + 45 * 60 * 1000).toISOString();
 
-  const newOrder = new orderModel({
-    userId: body.userId,
+  const orderPayload = {
+    user_id: body.userId,
     items: body.items,
     amount: finalAmount,
     subtotal,
-    taxAmount,
-    deliveryFee: DELIVERY_FEE,
+    tax_amount: taxAmount,
+    delivery_fee: DELIVERY_FEE,
     address: body.address,
-    paymentMethod: body.paymentMethod || "Stripe",
-    promoCode: body.promoCode || null,
-    discountAmount: discountValue,
-    estimatedDelivery,
-    orderedForSomeoneElse: body.orderedForSomeoneElse,
-  });
+    payment_method: body.paymentMethod || "Stripe",
+    promo_code: body.promoCode || null,
+    discount_amount: discountValue,
+    estimated_delivery: estimatedDelivery,
+    ordered_for_someone_else: body.orderedForSomeoneElse || false,
+  };
 
   // Clear the user's cart immediately
-  await userModel.findByIdAndUpdate(body.userId, { cartData: {} });
+  await insforge.database
+    .from("users")
+    .update({ cart_data: {} })
+    .eq("id", body.userId);
 
   // --- COD Path ---
   if (body.paymentMethod === "COD") {
-    await newOrder.save();
+    const { data: newOrder, error } = await insforge.database
+      .from("orders")
+      .insert([orderPayload])
+      .select()
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+
     emitSocketEvent(io, "admin_room", "new_order", {
-      orderId: newOrder._id,
+      orderId: newOrder.id,
       items: newOrder.items,
       amount: newOrder.amount,
       address: newOrder.address,
@@ -82,7 +94,14 @@ export const placeNewOrder = async (body, io) => {
     return { isCOD: true };
   }
 
-  // --- Stripe Path ---
+  // --- Stripe Path: insert order first to get the ID ---
+  const { data: newOrder, error: insertError } = await insforge.database
+    .from("orders")
+    .insert([orderPayload])
+    .select()
+    .maybeSingle();
+  if (insertError) throw new Error(insertError.message);
+
   const line_items = body.items.map((item) => ({
     price_data: {
       currency: "INR",
@@ -116,23 +135,26 @@ export const placeNewOrder = async (body, io) => {
     payment_method_types: ["card", "alipay", "amazon_pay"],
     line_items,
     mode: "payment",
-    success_url: `${FRONTEND_URL}/verify?success=true&orderId=${newOrder._id}`,
-    cancel_url: `${FRONTEND_URL}/verify?success=false&orderId=${newOrder._id}`,
+    success_url: `${FRONTEND_URL}/verify?success=true&orderId=${newOrder.id}`,
+    cancel_url: `${FRONTEND_URL}/verify?success=false&orderId=${newOrder.id}`,
   };
 
   if (body.promoCode === "BITE20") {
     const stripeCoupon = await stripe.coupons.create({
       percent_off: 20,
-      duration: 'once',
-      name: '20% Special Discount'
+      duration: "once",
+      name: "20% Special Discount",
     });
     sessionConfig.discounts = [{ coupon: stripeCoupon.id }];
   }
 
   const session = await stripe.checkout.sessions.create(sessionConfig);
 
-  newOrder.stripeSessionId = session.id;
-  await newOrder.save();
+  // Save the Stripe session ID to the order
+  await insforge.database
+    .from("orders")
+    .update({ stripe_session_id: session.id })
+    .eq("id", newOrder.id);
 
   return { session_url: session.url };
 };
@@ -142,37 +164,49 @@ export const placeNewOrder = async (body, io) => {
  */
 export const verifyOrderPayment = async (orderId, success, io) => {
   if (success !== "true") {
-    await orderModel.findByIdAndDelete(orderId);
+    await insforge.database.from("orders").delete().eq("id", orderId);
     return { paid: false };
   }
 
-  const preOrder = await orderModel.findById(orderId);
+  const { data: preOrder } = await insforge.database
+    .from("orders")
+    .select()
+    .eq("id", orderId)
+    .maybeSingle();
+
   let paymentIntentId = "";
 
-  if (preOrder?.stripeSessionId) {
+  if (preOrder?.stripe_session_id) {
     try {
-      const session = await stripe.checkout.sessions.retrieve(preOrder.stripeSessionId);
+      const session = await stripe.checkout.sessions.retrieve(preOrder.stripe_session_id);
       paymentIntentId = session.payment_intent;
     } catch (err) {
       console.error("Error retrieving Stripe session:", err);
     }
   }
 
-  const order = await orderModel.findByIdAndUpdate(
-    orderId,
-    {
+  const invoiceNumber = `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+  const { data: order } = await insforge.database
+    .from("orders")
+    .update({
       payment: true,
-      stripePaymentIntentId: paymentIntentId,
-      invoiceNumber: `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-    },
-    { new: true }
-  );
+      stripe_payment_intent_id: paymentIntentId,
+      invoice_number: invoiceNumber,
+    })
+    .eq("id", orderId)
+    .select()
+    .maybeSingle();
 
   if (order) {
-    const user = await userModel.findById(order.userId);
+    const { data: user } = await insforge.database
+      .from("users")
+      .select("email")
+      .eq("id", order.user_id)
+      .maybeSingle();
 
     emitSocketEvent(io, "admin_room", "new_order", {
-      orderId: order._id,
+      orderId: order.id,
       items: order.items,
       amount: order.amount,
       address: order.address,
@@ -181,10 +215,10 @@ export const verifyOrderPayment = async (orderId, success, io) => {
     });
 
     if (user?.email) {
-      sendOrderConfirmation(user.email, order).catch(console.error);
+      sendOrderConfirmation(user.email, remapOrder(order)).catch(console.error);
     }
     if (order.address?.phone) {
-      sendOrderConfirmationSMS(order.address.phone, order).catch(console.error);
+      sendOrderConfirmationSMS(order.address.phone, remapOrder(order)).catch(console.error);
     }
   }
 
@@ -195,16 +229,23 @@ export const verifyOrderPayment = async (orderId, success, io) => {
  * Get a paginated list of orders for the authenticated user.
  */
 export const getOrdersByUser = async (userId, page = 1, limit = 10) => {
-  const skip = (page - 1) * limit;
-  const [orders, totalOrders] = await Promise.all([
-    orderModel.find({ userId }).sort({ date: -1 }).skip(skip).limit(limit),
-    orderModel.countDocuments({ userId }),
-  ]);
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+
+  const { data: orders, count, error } = await insforge.database
+    .from("orders")
+    .select("*", { count: "exact" })
+    .eq("user_id", userId)
+    .order("date", { ascending: false })
+    .range(from, to);
+
+  if (error) throw new Error(error.message);
+
   return {
-    data: orders,
-    totalPages: Math.ceil(totalOrders / limit),
+    data: (orders || []).map(remapOrder),
+    totalPages: Math.ceil((count || 0) / limit),
     currentPage: page,
-    totalOrders,
+    totalOrders: count || 0,
   };
 };
 
@@ -213,7 +254,11 @@ export const getOrdersByUser = async (userId, page = 1, limit = 10) => {
  */
 export const getAllOrders = async (userId) => {
   await assertAdmin(userId);
-  return orderModel.find({});
+  const { data: orders, error } = await insforge.database
+    .from("orders")
+    .select();
+  if (error) throw new Error(error.message);
+  return (orders || []).map(remapOrder);
 };
 
 /**
@@ -222,25 +267,31 @@ export const getAllOrders = async (userId) => {
 export const changeOrderStatus = async (userId, orderId, status, io) => {
   await assertAdmin(userId);
 
-  const order = await orderModel.findByIdAndUpdate(
-    orderId,
-    { status },
-    { new: true }
-  );
+  const { data: order, error } = await insforge.database
+    .from("orders")
+    .update({ status })
+    .eq("id", orderId)
+    .select()
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
 
   if (order) {
-    const customer = await userModel.findById(order.userId);
+    const { data: customer } = await insforge.database
+      .from("users")
+      .select("email")
+      .eq("id", order.user_id)
+      .maybeSingle();
 
-    emitSocketEvent(io, `user_${order.userId}`, "order_update", {
-      orderId: order._id,
+    emitSocketEvent(io, `user_${order.user_id}`, "order_update", {
+      orderId: order.id,
       status,
       updatedAt: new Date(),
     });
 
-    // 🛵 Broadcast to all connected riders when food is ready for collection
     if (status === "Ready for Pickup") {
       emitSocketEvent(io, "rider_room", "food_ready", {
-        orderId: order._id,
+        orderId: order.id,
         items: order.items,
         amount: order.amount,
         address: {
@@ -251,16 +302,15 @@ export const changeOrderStatus = async (userId, orderId, status, io) => {
     }
 
     if (customer?.email) {
-      sendStatusUpdateEmail(customer.email, order, status).catch(console.error);
+      sendStatusUpdateEmail(customer.email, remapOrder(order), status).catch(console.error);
     }
     if (order.address?.phone) {
       sendStatusUpdateSMS(order.address.phone, status).catch(console.error);
     }
   }
 
-  return order;
+  return remapOrder(order);
 };
-
 
 /**
  * Process an admin-initiated refund via Stripe.
@@ -268,58 +318,73 @@ export const changeOrderStatus = async (userId, orderId, status, io) => {
 export const processRefund = async (userId, orderId, reason, io) => {
   await assertAdmin(userId);
 
-  const order = await orderModel.findById(orderId);
+  const { data: order } = await insforge.database
+    .from("orders")
+    .select()
+    .eq("id", orderId)
+    .maybeSingle();
+
   if (!order || !order.payment) throw new Error("ORDER_NOT_PAID");
-  if (order.isRefunded) throw new Error("ALREADY_REFUNDED");
-  if (!order.stripePaymentIntentId) throw new Error("NO_PAYMENT_INTENT");
+  if (order.is_refunded) throw new Error("ALREADY_REFUNDED");
+  if (!order.stripe_payment_intent_id) throw new Error("NO_PAYMENT_INTENT");
 
   await stripe.refunds.create({
-    payment_intent: order.stripePaymentIntentId,
+    payment_intent: order.stripe_payment_intent_id,
     reason: "requested_by_customer",
   });
 
-  const refundedOrder = await orderModel.findByIdAndUpdate(
-    orderId,
-    {
+  const { data: refundedOrder } = await insforge.database
+    .from("orders")
+    .update({
       status: "Refunded",
-      isRefunded: true,
-      refundAmount: order.amount,
-      refundReason: reason || "Admin intervention",
-    },
-    { new: true }
-  );
+      is_refunded: true,
+      refund_amount: order.amount,
+      refund_reason: reason || "Admin intervention",
+    })
+    .eq("id", orderId)
+    .select()
+    .maybeSingle();
 
-  const customer = await userModel.findById(refundedOrder.userId);
+  const { data: customer } = await insforge.database
+    .from("users")
+    .select("email")
+    .eq("id", refundedOrder.user_id)
+    .maybeSingle();
 
-  emitSocketEvent(io, `user_${refundedOrder.userId}`, "order_update", {
-    orderId: refundedOrder._id,
+  emitSocketEvent(io, `user_${refundedOrder.user_id}`, "order_update", {
+    orderId: refundedOrder.id,
     status: "Refunded",
     updatedAt: new Date(),
   });
 
   if (customer?.email) {
-    sendStatusUpdateEmail(customer.email, refundedOrder, "Refunded").catch(console.error);
+    sendStatusUpdateEmail(customer.email, remapOrder(refundedOrder), "Refunded").catch(console.error);
   }
   if (refundedOrder.address?.phone) {
     sendStatusUpdateSMS(refundedOrder.address.phone, "Refunded").catch(console.error);
   }
 
-  return refundedOrder;
+  return remapOrder(refundedOrder);
 };
 
 /**
  * Customer-initiated order cancellation. Auto-refunds Stripe if applicable.
  */
 export const cancelUserOrder = async (userId, orderId, io) => {
-  const order = await orderModel.findById(orderId);
+  const { data: order } = await insforge.database
+    .from("orders")
+    .select()
+    .eq("id", orderId)
+    .maybeSingle();
+
   if (!order) throw new Error("ORDER_NOT_FOUND");
-  if (order.userId !== userId) throw new Error("UNAUTHORIZED");
+  if (order.user_id !== userId) throw new Error("UNAUTHORIZED");
   if (order.status !== "Food Processing") throw new Error("CANNOT_CANCEL");
 
-  if (order.payment && order.stripePaymentIntentId && !order.isRefunded) {
+  if (order.payment && order.stripe_payment_intent_id && !order.is_refunded) {
     try {
       await stripe.refunds.create({
-        payment_intent: order.stripePaymentIntentId,
+        payment_intent: order.stripe_payment_intent_id,
         reason: "requested_by_customer",
       });
     } catch (stripeErr) {
@@ -327,35 +392,40 @@ export const cancelUserOrder = async (userId, orderId, io) => {
     }
   }
 
-  const cancelledOrder = await orderModel.findByIdAndUpdate(
-    orderId,
-    {
+  const { data: cancelledOrder } = await insforge.database
+    .from("orders")
+    .update({
       status: "Cancelled",
-      isRefunded: order.payment,
-      refundAmount: order.payment ? order.amount : 0,
-      refundReason: "Customer Cancelled",
-    },
-    { new: true }
-  );
+      is_refunded: order.payment,
+      refund_amount: order.payment ? order.amount : 0,
+      refund_reason: "Customer Cancelled",
+    })
+    .eq("id", orderId)
+    .select()
+    .maybeSingle();
 
-  const customer = await userModel.findById(userId);
+  const { data: customer } = await insforge.database
+    .from("users")
+    .select("email")
+    .eq("id", userId)
+    .maybeSingle();
 
   emitSocketEvent(io, `user_${userId}`, "order_update", {
-    orderId: cancelledOrder._id,
+    orderId: cancelledOrder.id,
     status: "Cancelled",
     updatedAt: new Date(),
   });
   emitSocketEvent(io, "admin_room", "order_update", {
-    orderId: cancelledOrder._id,
+    orderId: cancelledOrder.id,
     status: "Cancelled",
     updatedAt: new Date(),
   });
 
   if (customer?.email) {
-    sendStatusUpdateEmail(customer.email, cancelledOrder, "Cancelled").catch(console.error);
+    sendStatusUpdateEmail(customer.email, remapOrder(cancelledOrder), "Cancelled").catch(console.error);
   }
 
-  return cancelledOrder;
+  return remapOrder(cancelledOrder);
 };
 
 /**
@@ -374,15 +444,25 @@ export const handleStripeWebhook = async (rawBody, signature, io) => {
   if (event.type === "checkout.session.completed") {
     const session = event.data.object;
     try {
-      const order = await orderModel.findOne({ stripeSessionId: session.id });
+      const { data: order } = await insforge.database
+        .from("orders")
+        .select()
+        .eq("stripe_session_id", session.id)
+        .maybeSingle();
+
       if (order && !order.payment) {
-        order.payment = true;
-        order.stripePaymentIntentId = session.payment_intent;
-        order.invoiceNumber = `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-        await order.save();
+        const invoiceNumber = `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+        await insforge.database
+          .from("orders")
+          .update({
+            payment: true,
+            stripe_payment_intent_id: session.payment_intent,
+            invoice_number: invoiceNumber,
+          })
+          .eq("id", order.id);
 
         emitSocketEvent(io, "admin_room", "new_order", {
-          orderId: order._id,
+          orderId: order.id,
           items: order.items,
           amount: order.amount,
           address: order.address,
@@ -390,7 +470,7 @@ export const handleStripeWebhook = async (rawBody, signature, io) => {
           date: order.date,
         });
 
-        console.log(`✅ Webhook: Order ${order._id} confirmed and paid!`);
+        console.log(`✅ Webhook: Order ${order.id} confirmed and paid!`);
       }
     } catch (err) {
       console.error("Error processing completed checkout session:", err);
@@ -399,11 +479,17 @@ export const handleStripeWebhook = async (rawBody, signature, io) => {
     const paymentIntent = event.data.object;
     console.log(`❌ Webhook: Payment failed for intent: ${paymentIntent.id}`);
     try {
-      const order = await orderModel.findOne({ stripePaymentIntentId: paymentIntent.id });
+      const { data: order } = await insforge.database
+        .from("orders")
+        .select("id")
+        .eq("stripe_payment_intent_id", paymentIntent.id)
+        .maybeSingle();
+
       if (order) {
-        order.status = "Cancelled";
-        order.refundReason = "Payment Failed";
-        await order.save();
+        await insforge.database
+          .from("orders")
+          .update({ status: "Cancelled", refund_reason: "Payment Failed" })
+          .eq("id", order.id);
       }
     } catch (err) {
       console.error("Error processing failed payment intent:", err);
