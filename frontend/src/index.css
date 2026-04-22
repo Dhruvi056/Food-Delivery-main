@@ -6,20 +6,71 @@
 @tailwind utilities;
 
 :root {
-  --bg: #0a0a08;
-  --surface: #111110;
-  --surface2: #1a1a17;
-  --border: #2a2a25;
-  --text: #f0ede6;
-  --muted: #7a7870;
-  --accent: #e8523a;
-  --accent2: #f5a623;
-  --green: #3ecf4b;
+  /* Light theme defaults (ThemeContext toggles `dark` class on <html>) */
+  --bg: #f6f7fb;
+  --surface: #ffffff;
+  --surface2: #f1f5f9;
+  --border: rgba(15, 23, 42, 0.12);
+  --text: #0f172a;
+  --muted: rgba(15, 23, 42, 0.62);
+
+  /* Brand */
+  --accent: #f97316; /* user request: light mode buttons orange */
+  --accent2: #fb923c;
+  --green: #16a34a;
+
+  /* Compatibility tokens used across component CSS */
+  --primary: var(--accent);
+  --primary-dark: #ea580c;
+  --primary-light: #ffedd5;
+  --text-dark: var(--text);
+  --text-muted: var(--muted);
+  --text-color: var(--text);
+  --text-color-light: rgba(15, 23, 42, 0.5);
+  --bg-card: rgba(255, 255, 255, 0.92);
+  --shadow-sm: 0 10px 30px rgba(2, 6, 23, 0.08);
+  --shadow-lg: 0 24px 70px rgba(2, 6, 23, 0.16);
+
+  /* Gradients (footer/buttons) */
+  --gradient-primary: linear-gradient(135deg, #f97316 0%, #fb923c 45%, #f43f5e 100%);
+  --gradient-warm: linear-gradient(90deg, #f97316, #fb923c, #f43f5e);
+  --gradient-dark: radial-gradient(1200px 500px at 20% -10%, rgba(249, 115, 22, 0.18) 0%, rgba(244, 63, 94, 0.08) 40%, rgba(2, 6, 23, 0.0) 65%),
+    linear-gradient(180deg, #ffffff 0%, #f8fafc 65%, #f1f5f9 100%);
   
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 20px;
   --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+html.dark {
+  --bg: #0a0a08;
+  --surface: #111110;
+  --surface2: #1a1a17;
+  --border: #2a2a25;
+  --text: #f0ede6;
+  --muted: rgba(240, 237, 230, 0.55);
+
+  /* Dark brand accent consistent with existing UI */
+  --accent: #e94560;
+  --accent2: #ff6b35;
+  --green: #3ecf4b;
+
+  --primary: var(--accent);
+  --primary-dark: #c73652;
+  --primary-light: rgba(233, 69, 96, 0.16);
+  --text-dark: var(--text);
+  --text-muted: var(--muted);
+  --text-color: var(--text);
+  --text-color-light: rgba(240, 237, 230, 0.45);
+  --bg-card: rgba(17, 17, 16, 0.86);
+  --shadow-sm: 0 14px 50px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 28px 90px rgba(0, 0, 0, 0.55);
+
+  --gradient-primary: linear-gradient(135deg, #e94560 0%, #ff6b35 100%);
+  --gradient-warm: linear-gradient(90deg, #e94560, #ff6b35, #f59e0b);
+  --gradient-dark: radial-gradient(1200px 500px at 20% -10%, rgba(233, 69, 96, 0.22) 0%, rgba(255, 107, 53, 0.10) 45%, rgba(0, 0, 0, 0.0) 65%),
+    linear-gradient(180deg, #0b0b0a 0%, #0f0f0f 55%, #0a0a08 100%);
 }
 
 * {
@@ -31,7 +82,7 @@
 }
 
 h1, h2, h3, h4, .font-display {
-  font-family: 'Syne', sans-serif;
+  font-family: 'Sans', sans-serif;
   font-weight: 800;
 }
 
@@ -44,14 +95,14 @@ body {
 }
 
 .app {
-  width: 85%;
+  width: min(92%, 1400px);
   max-width: 1400px;
   margin: auto;
 }
 
 /* Custom Utilities */
 .glass {
-  background: rgba(17, 17, 16, 0.8);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
   backdrop-filter: blur(12px);
   border: 1px solid var(--border);
 }

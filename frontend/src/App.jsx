@@ -16,6 +16,7 @@ import ErrorBoundary from "./components/ErrorBoundary/ErrorBoundary";
 import RiderDashboard from "./pages/RiderDashboard/RiderDashboard";
 import Track from "./pages/Track/Track";
 import Profile from "./pages/Profile/Profile";
+import PrivacyPolicy from "./pages/PrivacyPolicy/PrivacyPolicy";
 
 const App = () => {
   const [showLogin, setShowLogin] = useState(false);
@@ -83,6 +84,7 @@ const App = () => {
             <Route path="/rider" element={<RiderDashboard />} />
             <Route path="/track/:orderId" element={<Track />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           </Routes>
         </ErrorBoundary>
       </div>

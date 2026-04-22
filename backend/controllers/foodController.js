@@ -7,6 +7,7 @@ import {
   adminListAllFood,
   updateFoodItem,
 } from "../services/foodService.js";
+import { getIO } from "../utils/socket.js";
 
 // ── Error message map (service error code → user-facing message) ───────────────
 const ERROR_MESSAGES = {
@@ -24,6 +25,21 @@ const handleServiceError = (res, error) => {
 const addFood = async (req, res) => {
   try {
     const food = await addFoodItem(req.body.userId, req.body, req.file);
+    try {
+      const io = getIO();
+      io.to("admin_room").emit("new_food_added", {
+        foodId: food._id,
+        name: food.name,
+        category: food.category,
+      });
+      io.emit("new_food_added", {
+        foodId: food._id,
+        name: food.name,
+        category: food.category,
+      });
+    } catch (socketError) {
+      console.warn("[foodController] socket emit failed:", socketError.message);
+    }
     res.json({ success: true, message: "Food Added", data: food });
   } catch (error) {
     handleServiceError(res, error);
