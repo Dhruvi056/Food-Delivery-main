@@ -11,8 +11,8 @@ import insforge from "../config/insforge.js";
 
 // ── Token Helpers ──────────────────────────────────────────────────────────────
 
-export const createAccessToken = (id) =>
-  jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "15m" });
+export const createAccessToken = (id, role) =>
+  jwt.sign({ id, role }, process.env.JWT_SECRET, { expiresIn: "15m" });
 
 export const createRefreshToken = (id) => {
   const secret =
@@ -48,7 +48,7 @@ const updateUser = async (id, fields) => {
     .update(fields)
     .eq("id", id)
     .select()
-    .maybeSingle();
+    .single();
   if (error) throw new Error(error.message);
   return data;
 };
@@ -66,16 +66,11 @@ export const initiateLogin = async (email, password) => {
   const isMatch = await bcrypt.compare(password, user.password);
   if (!isMatch) throw new Error("INVALID_CREDENTIALS");
 
-  // If SMTP is not configured, skip 2FA and issue tokens directly
-  const smtpConfigured =
-    process.env.SMTP_USER &&
-    process.env.SMTP_PASS &&
-    !process.env.SMTP_USER.includes("your_email") &&
-    !process.env.SMTP_PASS.includes("your_email_app_password");
+  const twoFactorEnabled = process.env.CHECK_2FA_ENABLED === 'true';
 
-  if (!smtpConfigured) {
-    console.log("⚠️  SMTP not configured — bypassing 2FA for:", email);
-    const accessToken = createAccessToken(user.id);
+  if (!twoFactorEnabled) {
+    console.log("⚠️  2FA disabled or SMTP not configured — bypassing for:", email);
+    const accessToken = createAccessToken(user.id, user.role);
     const refreshToken = createRefreshToken(user.id);
     const hashedRefresh = await bcrypt.hash(refreshToken, 10);
     await updateUser(user.id, { refresh_token: hashedRefresh });
@@ -117,7 +112,7 @@ export const completeTwoFA = async (email, code) => {
   const isValid = await bcrypt.compare(code, user.two_factor_code);
   if (!isValid) throw new Error("INVALID_CODE");
 
-  const accessToken = createAccessToken(user.id);
+  const accessToken = createAccessToken(user.id, user.role);
   const refreshToken = createRefreshToken(user.id);
   const hashedRefresh = await bcrypt.hash(refreshToken, 10);
 
@@ -134,28 +129,35 @@ export const completeTwoFA = async (email, code) => {
  * Register a new user. Issues tokens directly (no 2FA on first signup).
  */
 export const registerNewUser = async ({ name, email, password }) => {
+  // Validate BEFORE hitting the DB to surface clean error messages
+  if (!name || !name.trim())              throw new Error("NAME_REQUIRED");
+  if (!validator.isEmail(email))           throw new Error("INVALID_EMAIL");
+  if (!password || password.length < 8)   throw new Error("PASSWORD_TOO_SHORT");
+
   const exists = await findUserByEmail(email);
   if (exists) throw new Error("USER_EXISTS");
-  if (!validator.isEmail(email)) throw new Error("INVALID_EMAIL");
-  if (password.length < 8) throw new Error("PASSWORD_TOO_SHORT");
 
   const salt = await bcrypt.genSalt(Number(process.env.SALT) || 10);
   const hashedPassword = await bcrypt.hash(password, salt);
 
-  const { data: newUser, error } = await insforge.database
+  // insert() returns an ARRAY even for single-row inserts — take [0]
+  const { data: rows, error } = await insforge.database
     .from("users")
-    .insert([{ name, email, password: hashedPassword }])
+    .insert({ name: name.trim(), email, password: hashedPassword })
     .select()
-    .maybeSingle();
+    .single();
   if (error) throw new Error(error.message);
 
-  const accessToken = createAccessToken(newUser.id);
+  const newUser = rows;
+  if (!newUser?.id) throw new Error("REGISTRATION_FAILED");
+
+  const accessToken  = createAccessToken(newUser.id, newUser.role || "user");
   const refreshToken = createRefreshToken(newUser.id);
   const hashedRefresh = await bcrypt.hash(refreshToken, 10);
 
   await updateUser(newUser.id, { refresh_token: hashedRefresh });
 
-  return { token: accessToken, refreshToken, role: newUser.role, name: newUser.name };
+  return { token: accessToken, refreshToken, role: newUser.role || "user", name: newUser.name };
 };
 
 /**
@@ -182,7 +184,7 @@ export const rotateTokens = async (refreshToken) => {
     throw new Error("TOKEN_REUSE_DETECTED");
   }
 
-  const newAccessToken = createAccessToken(user.id);
+  const newAccessToken = createAccessToken(user.id, user.role);
   const newRefreshToken = createRefreshToken(user.id);
   const hashedRefresh = await bcrypt.hash(newRefreshToken, 10);
 

@@ -1,4 +1,5 @@
 import { Server } from "socket.io";
+import jwt from "jsonwebtoken";
 
 let io;
 
@@ -8,6 +9,17 @@ export const initSocket = (httpServer) => {
             origin: ["http://localhost:5173", "http://localhost:5174"],
             methods: ["GET", "POST"],
         },
+    });
+
+    io.use((socket, next) => {
+        const token = socket.handshake.auth.token || socket.handshake.headers.token;
+        if (!token) return next(new Error("Authentication error"));
+
+        jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+            if (err) return next(new Error("Authentication error"));
+            socket.decoded = decoded;
+            next();
+        });
     });
 
     io.on("connection", (socket) => {

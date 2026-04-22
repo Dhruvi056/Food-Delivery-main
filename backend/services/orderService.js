@@ -43,12 +43,58 @@ export const placeNewOrder = async (body, io) => {
     0
   );
 
+  // FIX A: Read user addresses and find selected one
+  const { data: user } = await insforge.database
+    .from("users")
+    .select("addresses")
+    .eq("id", body.userId)
+    .single();
+
+  const addresses = user?.addresses || [];
+  const selectedAddress = body.addressId 
+    ? addresses.find(a => a.id === body.addressId)
+    : (body.addressIndex !== undefined ? addresses[body.addressIndex] : body.address);
+
+  if (!selectedAddress) throw new Error("Delivery address not found");
+
   let discountValue = 0;
-  if (body.promoCode === "BITE20") {
-    discountValue = subtotal * 0.2;
+  let couponId = null;
+
+  if (body.promoCode) {
+    const { data: coupon } = await insforge.database
+      .from("coupons")
+      .select("id, discount_type, discount_value, expires_at")
+      .eq("code", body.promoCode.toUpperCase())
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (coupon) {
+      if (coupon.expires_at && new Date(coupon.expires_at) < new Date()) {
+        throw new Error("Coupon has expired");
+      }
+      // Check if already used
+      const { data: usage } = await insforge.database
+        .from("coupon_uses")
+        .select("id")
+        .eq("coupon_id", coupon.id)
+        .eq("user_id", body.userId)
+        .maybeSingle();
+
+      if (usage) throw new Error("Coupon already used");
+
+      couponId = coupon.id;
+      if (coupon.discount_type === "percentage") {
+        discountValue = subtotal * (coupon.discount_value / 100);
+      } else {
+        discountValue = Math.min(subtotal, coupon.discount_value);
+      }
+    } else if (body.promoCode === "BITE20") {
+      // Legacy fallback if not in DB
+      discountValue = subtotal * 0.2;
+    }
   }
 
-  const taxAmount = computeTax(body.address?.state, subtotal);
+  const taxAmount = computeTax(selectedAddress?.state, subtotal);
   const finalAmount = subtotal + taxAmount + DELIVERY_FEE - discountValue;
   const estimatedDelivery = new Date(Date.now() + 45 * 60 * 1000).toISOString();
 
@@ -59,12 +105,14 @@ export const placeNewOrder = async (body, io) => {
     subtotal,
     tax_amount: taxAmount,
     delivery_fee: DELIVERY_FEE,
-    address: body.address,
+    address: selectedAddress,
+    delivery_address: selectedAddress, // Explicit column as requested
     payment_method: body.paymentMethod || "Stripe",
     promo_code: body.promoCode || null,
     discount_amount: discountValue,
     estimated_delivery: estimatedDelivery,
     ordered_for_someone_else: body.orderedForSomeoneElse || false,
+    created_at: new Date().toISOString() // Explicit as requested
   };
 
   // Clear the user's cart immediately
@@ -79,7 +127,7 @@ export const placeNewOrder = async (body, io) => {
       .from("orders")
       .insert([orderPayload])
       .select()
-      .maybeSingle();
+      .single();
     if (error) throw new Error(error.message);
 
     emitSocketEvent(io, "admin_room", "new_order", {
@@ -91,6 +139,13 @@ export const placeNewOrder = async (body, io) => {
       date: newOrder.date,
       paymentMethod: "COD",
     });
+
+    if (couponId) {
+      await insforge.database
+        .from("coupon_uses")
+        .insert({ coupon_id: couponId, user_id: body.userId, order_id: newOrder.id });
+    }
+
     return { isCOD: true };
   }
 
@@ -99,7 +154,7 @@ export const placeNewOrder = async (body, io) => {
     .from("orders")
     .insert([orderPayload])
     .select()
-    .maybeSingle();
+    .single();
   if (insertError) throw new Error(insertError.message);
 
   const line_items = body.items.map((item) => ({
@@ -137,6 +192,10 @@ export const placeNewOrder = async (body, io) => {
     mode: "payment",
     success_url: `${FRONTEND_URL}/verify?success=true&orderId=${newOrder.id}`,
     cancel_url: `${FRONTEND_URL}/verify?success=false&orderId=${newOrder.id}`,
+    metadata: {
+      orderId: newOrder.id,
+      deliveryAddress: JSON.stringify(selectedAddress)
+    }
   };
 
   if (body.promoCode === "BITE20") {
@@ -155,6 +214,12 @@ export const placeNewOrder = async (body, io) => {
     .from("orders")
     .update({ stripe_session_id: session.id })
     .eq("id", newOrder.id);
+
+  if (couponId) {
+    await insforge.database
+      .from("coupon_uses")
+      .insert({ coupon_id: couponId, user_id: body.userId, order_id: newOrder.id });
+  }
 
   return { session_url: session.url };
 };
@@ -196,7 +261,7 @@ export const verifyOrderPayment = async (orderId, success, io) => {
     })
     .eq("id", orderId)
     .select()
-    .maybeSingle();
+    .single();
 
   if (order) {
     const { data: user } = await insforge.database
@@ -250,6 +315,30 @@ export const getOrdersByUser = async (userId, page = 1, limit = 10) => {
 };
 
 /**
+ * Fetch detailed information for a single order, including rider info.
+ */
+export const getOrderById = async (orderId) => {
+  const { data: order, error } = await insforge.database
+    .from("orders")
+    .select()
+    .eq("id", orderId)
+    .single();
+
+  if (error || !order) throw new Error("ORDER_NOT_FOUND");
+
+  if (order.rider_id) {
+    const { data: rider } = await insforge.database
+      .from("users")
+      .select("id, name, phone, rider_status")
+      .eq("id", order.rider_id)
+      .maybeSingle();
+    order.rider = rider;
+  }
+
+  return remapOrder(order);
+};
+
+/**
  * List all orders (admin only).
  */
 export const getAllOrders = async (userId) => {
@@ -272,7 +361,7 @@ export const changeOrderStatus = async (userId, orderId, status, io) => {
     .update({ status })
     .eq("id", orderId)
     .select()
-    .maybeSingle();
+    .single();
 
   if (error) throw new Error(error.message);
 
@@ -343,7 +432,7 @@ export const processRefund = async (userId, orderId, reason, io) => {
     })
     .eq("id", orderId)
     .select()
-    .maybeSingle();
+    .single();
 
   const { data: customer } = await insforge.database
     .from("users")
@@ -402,7 +491,7 @@ export const cancelUserOrder = async (userId, orderId, io) => {
     })
     .eq("id", orderId)
     .select()
-    .maybeSingle();
+    .single();
 
   const { data: customer } = await insforge.database
     .from("users")
@@ -452,20 +541,37 @@ export const handleStripeWebhook = async (rawBody, signature, io) => {
 
       if (order && !order.payment) {
         const invoiceNumber = `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+        // FIX B: Parse delivery address from metadata
+        const deliveryAddress = session.metadata?.deliveryAddress 
+          ? JSON.parse(session.metadata.deliveryAddress) 
+          : order.address;
+
         await insforge.database
           .from("orders")
           .update({
             payment: true,
             stripe_payment_intent_id: session.payment_intent,
             invoice_number: invoiceNumber,
+            delivery_address: deliveryAddress
           })
           .eq("id", order.id);
+
+        // Insert notification
+        await insforge.database.from("notifications").insert({
+          user_id: order.user_id,
+          type: "payment",
+          message: "Payment confirmed! Your order is being prepared.",
+          order_id: order.id
+        });
+
+        // Emit payment confirmation to user
+        getIO().to(`user_${order.user_id}`).emit("payment_confirmed", { orderId: order.id });
 
         emitSocketEvent(io, "admin_room", "new_order", {
           orderId: order.id,
           items: order.items,
           amount: order.amount,
-          address: order.address,
+          address: deliveryAddress,
           status: order.status,
           date: order.date,
         });

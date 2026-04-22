@@ -19,7 +19,9 @@ const FoodItem = memo(({ id, name, price, description, image, calorie, isAvailab
 
   const qty = cartItems?.[id] || 0;
   const inCart = qty > 0;
-  const imgSrc = `${url}/images/${image}`;
+  // InsForge storage returns a full URL (https://...) — use it directly.
+  // Legacy items that only store a filename fall back to the old local path.
+  const imgSrc = image;
 
   return (
     <div className={[

@@ -14,6 +14,8 @@ import Calorie from "./pages/Calorie/Calorie";
 import ResetPassword from "./pages/ResetPassword/ResetPassword";
 import ErrorBoundary from "./components/ErrorBoundary/ErrorBoundary";
 import RiderDashboard from "./pages/RiderDashboard/RiderDashboard";
+import Track from "./pages/Track/Track";
+import Profile from "./pages/Profile/Profile";
 
 const App = () => {
   const [showLogin, setShowLogin] = useState(false);
@@ -78,7 +80,9 @@ const App = () => {
             <Route path="/myorders" element={<MyOrders />} />
             <Route path="/calorie" element={<Calorie />} />
             <Route path="/reset-password/:token" element={<ResetPassword />} />
-            <Route path="/rider-dashboard" element={<RiderDashboard />} />
+            <Route path="/rider" element={<RiderDashboard />} />
+            <Route path="/track/:orderId" element={<Track />} />
+            <Route path="/profile" element={<Profile />} />
           </Routes>
         </ErrorBoundary>
       </div>

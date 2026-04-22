@@ -123,7 +123,7 @@ const Add = ({ url }) => {
               {(image || (isEditMode && editItem.image)) ? (
                 <>
                   <img
-                    src={image ? URL.createObjectURL(image) : `${url}/images/${editItem.image}`}
+                    src={image ? URL.createObjectURL(image) : editItem.image}
                     alt="preview"
                     className="absolute inset-0 w-full h-full object-cover rounded-2xl"
                   />

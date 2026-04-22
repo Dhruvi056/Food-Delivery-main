@@ -1,146 +1,172 @@
-import insforge from "../config/insforge.js";
+import { dbQuery } from "../config/db.js";
+import { getIO } from "../config/socket.js";
 
-// Rider-facing delivery lifecycle (in strict progression order)
-const RIDER_LIFECYCLE = [
-  "Accepted by Rider",
-  "At Restaurant",
-  "Picked Up",
-  "Out for Delivery",
-  "Delivered",
-];
-
-const emitSocketEvent = (io, room, event, payload) => {
-  if (io) io.to(room).emit(event, payload);
+const STATUS_FLOW = {
+  "Ready for Pickup": {
+    next: "Out for Delivery",
+    timestampCol: "picked_up_at",
+    notifMessage: "Your order has been picked up and is on the way!",
+  },
+  "Out for Delivery": {
+    next: "Delivered",
+    timestampCol: "delivered_at",
+    notifMessage: "Your order has been delivered. Enjoy your meal!",
+  },
 };
 
-// ── Service Functions ──────────────────────────────────────────────────────────
-
 /**
- * Fetch all orders visible to riders: status "Ready for Pickup" with no rider assigned.
+ * Fetch all orders available for riders to claim.
  */
 export const getAvailableOrders = async () => {
-  const { data: orders, error } = await insforge.database
-    .from("orders")
-    .select("id, items, amount, address, status, date")
-    .eq("status", "Ready for Pickup")
-    .is("rider_id", null)
-    .eq("payment", true)
-    .order("date", { ascending: true });
-
-  if (error) throw new Error(error.message);
-  return (orders || []).map((o) => ({ ...o, _id: o.id }));
+  return await dbQuery("orders", (q) =>
+    q
+      .select("*")
+      .eq("status", "Ready for Pickup")
+      .is("rider_id", null)
+      .eq("payment", true)
+      .order("created_at", { ascending: true })
+  );
 };
 
 /**
- * Atomic claim: fetch order with guard, then update if unclaimed.
- * Returns null if the order was already claimed by another rider.
+ * Claim an available order.
  */
-export const acceptOrder = async (orderId, riderId, io) => {
-  // Fetch with guard conditions
-  const { data: order } = await insforge.database
-    .from("orders")
-    .select()
-    .eq("id", orderId)
-    .is("rider_id", null)
-    .eq("status", "Ready for Pickup")
-    .maybeSingle();
+export const claimOrder = async (orderId, riderId) => {
+  // Step 1: Read order by id
+  const order = await dbQuery("orders", (q) =>
+    q.select("*").eq("id", orderId).maybeSingle()
+  );
 
-  if (!order) return null; // already claimed
+  if (!order) throw new Error("Order not found");
+  if (order.rider_id) throw new Error("Order already claimed");
+  if (order.status !== "Ready for Pickup") throw new Error("Order not available");
 
-  const { data: updatedOrder, error } = await insforge.database
-    .from("orders")
-    .update({ rider_id: riderId, status: "Accepted by Rider" })
-    .eq("id", orderId)
-    .select()
-    .maybeSingle();
+  // Step 2: Update orders
+  const updatedOrder = await dbQuery("orders", (q) =>
+    q
+      .update({
+        rider_id: riderId,
+        claimed_at: new Date().toISOString(),
+      })
+      .eq("id", orderId)
+      .is("rider_id", null) // Atomic check
+      .select()
+      .single()
+  );
 
-  if (error) throw new Error(error.message);
+  if (!updatedOrder) throw new Error("Claim failed, try again");
 
-  // Mark rider as busy
-  await insforge.database
-    .from("users")
-    .update({ rider_status: false })
-    .eq("id", riderId);
+  // Step 3: Update users (rider status)
+  await dbQuery("users", (q) =>
+    q.update({ rider_status: "on_delivery" }).eq("id", riderId)
+  );
 
-  emitSocketEvent(io, "admin_room", "order_update", {
-    orderId: updatedOrder.id,
-    status: "Accepted by Rider",
-    riderId,
-    updatedAt: new Date(),
-  });
+  // Step 4: Emit via Socket.io
+  getIO()
+    .to(`user_${order.user_id}`)
+    .emit("order_status_update", {
+      orderId,
+      status: "Ready for Pickup",
+      riderId,
+    });
 
-  return { ...updatedOrder, _id: updatedOrder.id };
+  // Step 5: Insert notification
+  await dbQuery("notifications", (q) =>
+    q.insert({
+      user_id: order.user_id,
+      type: "rider_assigned",
+      message: "A rider has been assigned to your order!",
+      order_id: orderId,
+    })
+  );
+
+  return updatedOrder;
 };
 
 /**
- * Advance status through RIDER_LIFECYCLE.
+ * Advance an order to the next status in the flow.
  */
-export const advanceDeliveryStatus = async (orderId, riderId, io) => {
-  const { data: order } = await insforge.database
-    .from("orders")
-    .select()
-    .eq("id", orderId)
-    .eq("rider_id", riderId)
-    .maybeSingle();
+export const advanceOrder = async (orderId, riderId) => {
+  // Step 1: Read order by id
+  const order = await dbQuery("orders", (q) =>
+    q.select("*").eq("id", orderId).maybeSingle()
+  );
 
-  if (!order) throw new Error("ORDER_NOT_FOUND_OR_UNAUTHORIZED");
+  if (!order) throw new Error("Order not found");
+  if (order.rider_id !== riderId) throw new Error("Not your order");
 
-  const currentIdx = RIDER_LIFECYCLE.indexOf(order.status);
-  if (currentIdx === -1 || currentIdx === RIDER_LIFECYCLE.length - 1) {
-    throw new Error("LIFECYCLE_COMPLETE");
+  // Step 2: Get transition
+  const transition = STATUS_FLOW[order.status];
+  if (!transition) throw new Error("Cannot advance from current status");
+
+  // Step 3: Update orders
+  const updatedOrder = await dbQuery("orders", (q) =>
+    q
+      .update({
+        status: transition.next,
+        [transition.timestampCol]: new Date().toISOString(),
+      })
+      .eq("id", orderId)
+      .select()
+      .single()
+  );
+
+  // Step 4: If Delivered: free the rider
+  if (transition.next === "Delivered") {
+    await dbQuery("users", (q) =>
+      q.update({ rider_status: "available" }).eq("id", riderId)
+    );
+    getIO().to("rider_room").emit("order_completed", { orderId });
   }
 
-  const nextStatus = RIDER_LIFECYCLE[currentIdx + 1];
+  // Step 5: Emit to user
+  getIO()
+    .to(`user_${order.user_id}`)
+    .emit("order_status_update", {
+      orderId,
+      status: transition.next,
+    });
 
-  const { data: updatedOrder, error } = await insforge.database
-    .from("orders")
-    .update({ status: nextStatus })
-    .eq("id", orderId)
-    .select()
-    .maybeSingle();
+  // Step 6: Insert notification
+  await dbQuery("notifications", (q) =>
+    q.insert({
+      user_id: order.user_id,
+      type: "order_update",
+      message: transition.notifMessage,
+      order_id: orderId,
+    })
+  );
 
-  if (error) throw new Error(error.message);
-
-  // If delivered: free up the rider
-  if (nextStatus === "Delivered") {
-    await insforge.database
-      .from("users")
-      .update({ rider_status: true })
-      .eq("id", riderId);
-
-    emitSocketEvent(io, `rider_${riderId}`, "delivery_complete", { orderId });
-  }
-
-  // Notify the customer
-  emitSocketEvent(io, `user_${updatedOrder.user_id}`, "order_update", {
-    orderId: updatedOrder.id,
-    status: nextStatus,
-    updatedAt: new Date(),
-  });
-
-  // Notify admin
-  emitSocketEvent(io, "admin_room", "order_update", {
-    orderId: updatedOrder.id,
-    status: nextStatus,
-    riderId,
-    updatedAt: new Date(),
-  });
-
-  return { ...updatedOrder, _id: updatedOrder.id };
+  return updatedOrder;
 };
 
 /**
- * Return the single active order claimed by this rider (if any).
+ * Update rider's GPS location.
  */
-export const getRiderActiveOrder = async (riderId) => {
-  const activeStatuses = RIDER_LIFECYCLE.filter((s) => s !== "Delivered");
+export const updateLocation = async (riderId, lat, lng) => {
+  return await dbQuery("rider_locations", (q) =>
+    q
+      .upsert({
+        rider_id: riderId,
+        latitude: lat,
+        longitude: lng,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'rider_id' })
+      .select()
+      .single()
+  );
+};
 
-  const { data: order } = await insforge.database
-    .from("orders")
-    .select()
-    .eq("rider_id", riderId)
-    .in("status", activeStatuses)
-    .maybeSingle();
-
-  return order ? { ...order, _id: order.id } : null;
+/**
+ * Get the current active order for a rider.
+ */
+export const getActiveOrder = async (riderId) => {
+  const data = await dbQuery("orders", (q) =>
+    q
+      .select("*")
+      .eq("rider_id", riderId)
+      .in("status", ["Ready for Pickup", "Out for Delivery"])
+      .maybeSingle()
+  );
+  return data || null;
 };

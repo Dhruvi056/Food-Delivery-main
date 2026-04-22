@@ -8,7 +8,7 @@ import { toast } from "react-toastify";
 import { FaChartBar } from "react-icons/fa";
 import {
   FiSun, FiMoon, FiLogOut, FiShoppingBag, FiBarChart2,
-  FiSearch, FiX, FiUser, FiShoppingCart, FiTruck,
+  FiSearch, FiX, FiUser, FiShoppingCart, FiTruck, FiBell,
 } from "react-icons/fi";
 import { useRef, useEffect } from "react";
 
@@ -29,11 +29,17 @@ const Navbar = ({ setShowLogin }) => {
   const [showProfile, setShowProfile] = useState(false);
   const profileRef = useRef(null);
 
-  const { getTotalCartAmount, token, setToken, searchTerm, setSearchTerm, userName, setUserName, userEmail, setUserEmail } = useContext(StoreContext);
+  const { 
+    getTotalCartAmount, token, setToken, searchTerm, setSearchTerm, 
+    userName, setUserName, userEmail, setUserEmail,
+    notifications, unreadCount, markAllRead 
+  } = useContext(StoreContext);
   const { theme, toggleTheme } = useTheme();
   const dark = theme === "dark";
   const navigate = useNavigate();
   const location = useLocation();
+  const [showNotifications, setShowNotifications] = useState(false);
+  const notificationRef = useRef(null);
 
   const scrollToSection = (id) => {
     const el = document.getElementById(id);
@@ -88,6 +94,9 @@ const Navbar = ({ setShowLogin }) => {
     const handleClickOutside = (event) => {
       if (profileRef.current && !profileRef.current.contains(event.target)) {
         setShowProfile(false);
+      }
+      if (notificationRef.current && !notificationRef.current.contains(event.target)) {
+        setShowNotifications(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -227,6 +236,39 @@ const Navbar = ({ setShowLogin }) => {
               </span>
             )}
           </Link>
+
+          {/* Notifications */}
+          {token && (
+            <div className="relative" ref={notificationRef}>
+              <button
+                onClick={() => { setShowNotifications(!showNotifications); if (!showNotifications) markAllRead(); }}
+                className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors duration-200 ${dark ? "text-slate-300 hover:text-brand-accent hover:bg-brand-card" : "text-slate-600 hover:text-brand-accent hover:bg-slate-100"}`}
+              >
+                <FiBell className="w-4 h-4" />
+              </button>
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-red-500 rounded-full flex items-center justify-center text-[9px] text-white font-bold px-1 animate-pulse">
+                  {unreadCount}
+                </span>
+              )}
+              
+              {showNotifications && (
+                <div className={`absolute top-10 right-0 w-72 max-h-96 overflow-y-auto glass rounded-xl shadow-2xl z-50 p-2 fade-in`}>
+                  <h4 className="text-[10px] font-bold uppercase tracking-widest text-brand-muted p-2 border-b border-brand-border mb-2">Notifications</h4>
+                  {notifications.length === 0 ? (
+                    <p className="text-center py-6 text-brand-muted text-sm">No notifications yet</p>
+                  ) : (
+                    notifications.map((n, idx) => (
+                      <div key={idx} className={`p-3 rounded-lg mb-1 transition-colors ${n.is_read ? 'opacity-60' : 'bg-white/5'}`}>
+                        <p className="text-sm text-brand-light">{n.message}</p>
+                        <span className="text-[10px] text-brand-muted">{new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Auth */}
           {!token ? (

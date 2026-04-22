@@ -12,21 +12,27 @@ import {
 } from "../services/userService.js";
 
 const ERROR_MESSAGES = {
-  USER_NOT_FOUND: "User doesn't exist",
-  INVALID_CREDENTIALS: "Invalid credentials",
-  NO_PENDING_CODE: "No verification code pending. Please login again.",
-  CODE_EXPIRED: "Code expired. Please login again.",
-  INVALID_CODE: "Invalid verification code",
-  USER_EXISTS: "User already exists",
-  INVALID_EMAIL: "Please enter a valid email address",
-  PASSWORD_TOO_SHORT: "Password must be at least 8 characters",
-  NO_REFRESH_TOKEN: "Refresh token is required",
-  INVALID_REFRESH_TOKEN: "Invalid or expired refresh token. Please login again.",
-  TOKEN_REUSE_DETECTED: "Token reuse detected. Please login again.",
-  INVALID_OR_EXPIRED_TOKEN: "Invalid or expired reset token",
+  USER_NOT_FOUND:            "User doesn't exist",
+  INVALID_CREDENTIALS:       "Invalid credentials",
+  NO_PENDING_CODE:           "No verification code pending. Please login again.",
+  CODE_EXPIRED:              "Code expired. Please login again.",
+  INVALID_CODE:              "Invalid verification code",
+  USER_EXISTS:               "User already exists",
+  NAME_REQUIRED:             "Name is required",
+  INVALID_EMAIL:             "Please enter a valid email address",
+  PASSWORD_TOO_SHORT:        "Password must be at least 8 characters",
+  REGISTRATION_FAILED:       "Registration failed. Please try again.",
+  NO_REFRESH_TOKEN:          "Refresh token is required",
+  INVALID_REFRESH_TOKEN:     "Invalid or expired refresh token. Please login again.",
+  TOKEN_REUSE_DETECTED:      "Token reuse detected. Please login again.",
+  INVALID_OR_EXPIRED_TOKEN:  "Invalid or expired reset token",
 };
 
 const handleServiceError = (res, error, fallback = "An unexpected error occurred") => {
+  // Always log the raw error so issues are diagnosable in server logs
+  if (!ERROR_MESSAGES[error.message]) {
+    console.error("[userController] Unhandled service error:", error.message);
+  }
   const msg = ERROR_MESSAGES[error.message] || fallback;
   res.json({ success: false, message: msg });
 };

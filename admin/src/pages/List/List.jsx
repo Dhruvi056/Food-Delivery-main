@@ -187,7 +187,7 @@ const List = ({ url }) => {
                       <td className="px-4 py-3.5 pl-5">
                         <div className="w-12 h-12 rounded-xl overflow-hidden border border-brand-border shrink-0">
                           <img
-                            src={`${url}/images/${item.image}`}
+                          src={item.image}
                             alt={item.name}
                             className={`w-full h-full object-cover ${item.isDeleted ? "grayscale" : ""}`}
                           />

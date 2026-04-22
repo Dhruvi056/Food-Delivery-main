@@ -7,6 +7,7 @@ import {
   processRefund,
   cancelUserOrder,
   handleStripeWebhook,
+  getOrderById,
 } from "../services/orderService.js";
 
 const ERROR_MESSAGES = {
@@ -56,13 +57,22 @@ const verifyOrder = async (req, res) => {
 const userOrders = async (req, res) => {
   try {
     const result = await getOrdersByUser(
-      req.body.userId,
+      req.userId,
       parseInt(req.query.page) || 1,
       parseInt(req.query.limit) || 10
     );
     res.json({ success: true, ...result });
   } catch (error) {
     handleServiceError(res, error, "Error fetching orders");
+  }
+};
+
+const getOrderDetails = async (req, res) => {
+  try {
+    const result = await getOrderById(req.params.orderId);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    handleServiceError(res, error, "Error fetching order details");
   }
 };
 
@@ -128,4 +138,5 @@ export {
   refundOrder,
   cancelOrder,
   stripeWebhook,
+  getOrderDetails,
 };

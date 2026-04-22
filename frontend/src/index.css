@@ -1,32 +1,24 @@
-/* ── Google Fonts (must be first) ─────────────────────────────────────────── */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@100..900&display=swap');
+/* ── Google Fonts ─────────────────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300;1,400;1,500&family=Syne:wght@800&display=swap');
 
-/* ── Tailwind CSS (alongside existing CSS — safe gradual migration) ─────── */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --primary: #ff6b35;
-  --primary-dark: #e85d26;
-  --primary-light: #ff8c5a;
-  --accent: #e94560;
-  --gradient-primary: linear-gradient(135deg, #ff6b35 0%, #e94560 100%);
-  --gradient-warm: linear-gradient(135deg, #ff9a56 0%, #ff6b35 50%, #e94560 100%);
-  --gradient-dark: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-  --text-dark: #2d3436;
-  --text-muted: #636e72;
-  --text-light: #b2bec3;
-  --bg-light: #fafafa;
-  --bg-card: #ffffff;
-  --shadow-sm: 0 2px 8px rgba(0,0,0,0.06);
-  --shadow-md: 0 4px 20px rgba(0,0,0,0.08);
-  --shadow-lg: 0 8px 40px rgba(0,0,0,0.12);
-  --shadow-glow: 0 4px 30px rgba(255,107,53,0.3);
+  --bg: #0a0a08;
+  --surface: #111110;
+  --surface2: #1a1a17;
+  --border: #2a2a25;
+  --text: #f0ede6;
+  --muted: #7a7870;
+  --accent: #e8523a;
+  --accent2: #f5a623;
+  --green: #3ecf4b;
+  
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 20px;
-  --radius-xl: 28px;
   --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -34,32 +26,21 @@
   padding: 0;
   margin: 0;
   box-sizing: border-box;
-  font-family: 'Inter', 'Outfit', sans-serif;
+  font-family: 'DM Sans', sans-serif;
   scroll-behavior: smooth;
+}
+
+h1, h2, h3, h4, .font-display {
+  font-family: 'Syne', sans-serif;
+  font-weight: 800;
 }
 
 body {
   min-height: 100vh;
-  background-color: var(--bg-light);
-  color: var(--text-dark);
+  background-color: var(--bg);
+  color: var(--text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  transition: background-color 0.3s ease, color 0.3s ease;
-}
-
-/* Dark mode body override — toggled by ThemeContext via .dark on <html> */
-html.dark body {
-  background-color: #0f0f0f;
-  color: #f1f5f9;
-}
-
-html.dark .app {
-  background-color: #0f0f0f;
-}
-
-a {
-  text-decoration: none;
-  color: inherit;
 }
 
 .app {
@@ -68,22 +49,33 @@ a {
   margin: auto;
 }
 
+/* Custom Utilities */
+.glass {
+  background: rgba(17, 17, 16, 0.8);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+}
+
+.btn-primary {
+  background-color: var(--accent);
+  color: white;
+  padding: 12px 24px;
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  transition: var(--transition);
+}
+
+.btn-primary:hover {
+  filter: brightness(1.1);
+  transform: translateY(-2px);
+}
+
+/* Transitions */
+.fade-in {
+  animation: fadeIn 0.5s ease forwards;
+}
+
 @keyframes fadeIn {
-  0% { opacity: 0; transform: translateY(10px); }
-  100% { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes slideUp {
-  0% { opacity: 0; transform: translateY(30px); }
-  100% { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.05); }
-}
-
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }

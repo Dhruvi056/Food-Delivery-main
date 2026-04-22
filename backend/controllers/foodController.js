@@ -14,7 +14,8 @@ const ERROR_MESSAGES = {
 };
 
 const handleServiceError = (res, error) => {
-  const msg = ERROR_MESSAGES[error.message] || "An unexpected error occurred";
+  console.error("[foodController] Service error:", error.message);
+  const msg = ERROR_MESSAGES[error.message] || error.message || "An unexpected error occurred";
   res.json({ success: false, message: msg });
 };
 
