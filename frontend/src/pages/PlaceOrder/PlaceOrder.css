@@ -129,6 +129,10 @@
     color: var(--text-dark);
 }
 
+.payment-options label:hover {
+    color: var(--primary);
+}
+
 /* ── Dark Mode Overrides ── */
 html.dark .place-order-left,
 html.dark .place-order .cart-total {

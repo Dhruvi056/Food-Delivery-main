@@ -230,11 +230,17 @@ const PlaceOrder = () => {
           </div>
           <div className="w-16 sm:w-24 border-t-2 border-gray-200 dark:border-gray-700 mx-2"></div>
           <div className="flex flex-col items-center">
-            <div className="relative w-10 h-10 rounded-full bg-[#e94560] text-white flex items-center justify-center font-bold shadow-[0_0_15px_rgba(233,69,96,0.5)]">
-              <span className="absolute w-full h-full rounded-full border-2 border-[#e94560] animate-ping opacity-75"></span>
+            <div
+              className="relative w-10 h-10 rounded-full text-white flex items-center justify-center font-bold shadow-[0_0_15px_rgba(0,0,0,0.18)]"
+              style={{ backgroundColor: "var(--primary)" }}
+            >
+              <span
+                className="absolute w-full h-full rounded-full border-2 animate-ping opacity-75"
+                style={{ borderColor: "var(--primary)" }}
+              />
               2
             </div>
-            <span className="text-sm mt-2 text-[#e94560] font-semibold dark:text-[#ff6b81]">Delivery</span>
+            <span className="text-sm mt-2 font-semibold" style={{ color: "var(--primary)" }}>Delivery</span>
           </div>
           <div className="w-16 sm:w-24 border-t-2 border-gray-200 dark:border-gray-700 mx-2"></div>
           <div className="flex flex-col items-center opacity-50">
@@ -295,7 +301,8 @@ const PlaceOrder = () => {
                 <button 
                   type="button" 
                   onClick={() => setSelectedAddressId("")}
-                  className="text-sm text-[#e94560] hover:underline cursor-pointer"
+                  className="text-sm hover:underline cursor-pointer"
+                  style={{ color: "var(--primary)" }}
                 >
                   Edit / Change
                 </button>
@@ -410,7 +417,7 @@ const PlaceOrder = () => {
                       You saved ₹{Math.round(calculateDiscount())}!
                     </span>
                   )}
-                  <span className="text-2xl text-[#e94560]">₹{animatedTotal}</span>
+                  <span className="text-2xl" style={{ color: "var(--primary)" }}>₹{animatedTotal}</span>
                 </b>
               </div>
             </div>
@@ -437,11 +444,11 @@ const PlaceOrder = () => {
             <div className="payment-method-selector pt-4">
               <h2 className="text-lg">Payment Method</h2>
               <div className="payment-options">
-                <label className="hover:text-[#e94560] transition-colors">
+                <label className="transition-colors">
                   <input type="radio" name="paymentMethod" value="Stripe" checked={paymentMethod === "Stripe"} onChange={(e) => setPaymentMethod(e.target.value)} />
                   Credit/Debit (Stripe)
                 </label>
-                <label className="hover:text-[#e94560] transition-colors">
+                <label className="transition-colors">
                   <input type="radio" name="paymentMethod" value="COD" checked={paymentMethod === "COD"} onChange={(e) => setPaymentMethod(e.target.value)} />
                   Cash on Delivery
                 </label>
@@ -451,7 +458,11 @@ const PlaceOrder = () => {
             <button 
               type="submit" 
               disabled={loading}
-              className={`w-full mt-6 py-3 px-4 rounded-lg font-bold text-white transition-all shadow-lg shadow-[#e94560]/30 flex items-center justify-center gap-2 ${loading ? 'bg-gray-400 cursor-not-allowed scale-[0.98]' : 'bg-[#e94560] hover:bg-[#d63d56] active:scale-[0.98]'}`}
+              className={`w-full mt-6 py-3 px-4 rounded-lg font-bold text-white transition-all flex items-center justify-center gap-2 ${loading ? 'bg-gray-400 cursor-not-allowed scale-[0.98]' : 'active:scale-[0.98] hover:-translate-y-0.5'}`}
+              style={{
+                background: loading ? undefined : "var(--gradient-primary)",
+                boxShadow: loading ? undefined : "0 14px 40px color-mix(in srgb, var(--primary) 28%, transparent)",
+              }}
             >
               {loading && <span className="animate-spin h-5 w-5 border-2 border-white/30 border-t-white rounded-full"></span>}
               {loading ? "PROCESSING..." : (paymentMethod === "COD" ? "PLACE ORDER (COD)" : "PROCEED TO PAYMENT")}

@@ -81,7 +81,7 @@ const ExploreMenu = ({ category, setCategory }) => {
       ].join(" ")}
     >
       {/* Header */}
-      <div className="mb-8">
+      <div className="mb-8 px-5">
         <h2 className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${dark ? "text-white" : "text-slate-800"}`}>
           Explore our menu
         </h2>
@@ -92,7 +92,7 @@ const ExploreMenu = ({ category, setCategory }) => {
       </div>
 
       {/* ── Category Pills Scroll Strip ── */}
-      <div className="flex gap-5 sm:gap-8 overflow-x-auto pb-4 scrollbar-hide">
+      <div className="flex gap-5 sm:gap-8 overflow-x-auto pb-4 py-3 px-3 scrollbar-hide">
         {/* "All" pill */}
         <button
           onClick={() => setCategory("All")}

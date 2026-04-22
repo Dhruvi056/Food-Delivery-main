@@ -15,7 +15,7 @@
     place-self: center;
     width: max(24vw, 360px);
     color: var(--text-muted);
-    background: rgba(255, 255, 255, 0.97);
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
     backdrop-filter: blur(20px);
     display: flex;
     flex-direction: column;
@@ -24,8 +24,8 @@
     border-radius: var(--radius-lg);
     font-size: 14px;
     animation: slideUp 0.4s ease;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
-    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: var(--shadow-lg);
+    border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
 }
 
 .login-popup-title {
@@ -61,18 +61,36 @@
 
 .login-popup-inputs input {
     outline: none;
-    border: 1.5px solid #e8e8e8;
+    border: 1.5px solid color-mix(in srgb, var(--border) 90%, transparent);
     padding: 12px 16px;
     border-radius: var(--radius-sm);
     font-size: 14px;
     transition: var(--transition);
-    background: #fafafa;
+    background: color-mix(in srgb, var(--surface2) 78%, transparent);
+    color: var(--text);
 }
 
 .login-popup-inputs input:focus {
     border-color: var(--primary);
-    background: white;
-    box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.1);
+    background: var(--surface);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent);
+}
+
+/* Keep auth modal "clean white card" even in dark theme (matches provided screenshot style) */
+html.dark .login-popup-container {
+    background: rgba(255, 255, 255, 0.96);
+    color: rgba(15, 23, 42, 0.65);
+    border: 1px solid rgba(255, 255, 255, 0.55);
+}
+
+html.dark .login-popup-title {
+    color: #0f172a;
+}
+
+html.dark .login-popup-inputs input {
+    background: #f8fafc;
+    border-color: rgba(15, 23, 42, 0.12);
+    color: #0f172a;
 }
 
 .login-popup-container button {

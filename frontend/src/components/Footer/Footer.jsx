@@ -1,9 +1,21 @@
-import React from "react";
 import "./Footer.css";
 import { assets } from "../../assets/frontend_assets/assets";
 import { toast } from "react-toastify";
+import { useNavigate } from "react-router-dom";
 
 const Footer = () => {
+  const navigate = useNavigate();
+
+  const goHomeHero = () => {
+    navigate("/");
+    setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 80);
+  };
+
+  const goOrderPage = () => {
+    navigate("/order");
+    setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 80);
+  };
+
   return (
     <div className="footer" id="footer">
       <div className="footer-content">
@@ -15,19 +27,13 @@ const Footer = () => {
             molestias ipsum qui vel aut natus aspernatur ipsa dignissimos,
             numquam assumenda deserunt.
           </p>
-          <div className="footer-social-icons">
-            <img src={assets.facebook_icon} alt="" />
-            <img src={assets.twitter_icon} alt="" />
-            <img src={assets.linkedin_icon} alt="" />
-          </div>
         </div>
         <div className="footer-content-center">
           <h2>Company</h2>
           <ul>
-            <li>Home</li>
-            <li>About us</li>
-            <li>Delivery</li>
-            <li>Privacy Policy</li>
+            <li onClick={goHomeHero}>Home</li>
+            <li onClick={goOrderPage}>Delivery</li>
+            <li onClick={() => navigate("/privacy-policy")}>Privacy Policy</li>
           </ul>
         </div>
         <div className="footer-content-right">

@@ -68,6 +68,12 @@ const StoreContextProvider = (props) => {
     socket.on('new_notification', () => {
       fetchNotifications();
     });
+
+    socket.on("new_food_added", (data) => {
+      toast.info(`New dish added: ${data?.name || "Fresh item"}`, { theme: "dark" });
+      fetchFoodList();
+      fetchNotifications();
+    });
   }, [fetchNotifications]);
 
   // ── Authentication Logic ──────────────────────────────────────────────────────

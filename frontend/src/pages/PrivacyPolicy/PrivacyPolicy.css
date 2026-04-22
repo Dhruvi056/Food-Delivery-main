@@ -1,0 +1,34 @@
+.privacy-policy-page {
+  margin: 40px auto 0;
+  animation: fadeIn 0.3s ease;
+}
+
+.privacy-policy-card {
+  background: var(--bg-card);
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: var(--radius-lg);
+  padding: 32px;
+  box-shadow: var(--shadow-sm);
+}
+
+.privacy-policy-card h1 {
+  font-size: 32px;
+  margin-bottom: 12px;
+}
+
+.privacy-policy-card h2 {
+  margin-top: 20px;
+  margin-bottom: 8px;
+  font-size: 20px;
+}
+
+.privacy-policy-card p {
+  line-height: 1.7;
+  color: var(--text-muted);
+}
+
+@media (max-width: 768px) {
+  .privacy-policy-card {
+    padding: 20px;
+  }
+}

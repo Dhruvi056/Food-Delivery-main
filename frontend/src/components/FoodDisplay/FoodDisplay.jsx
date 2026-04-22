@@ -1,4 +1,4 @@
-import React, { useContext, useMemo } from "react";
+import React, { useContext, useMemo, useState } from "react";
 import "./FoodDisplay.css"; // kept as fallback — not deleted
 import { StoreContext } from "../../context/StoreContext";
 import { useTheme } from "../../context/ThemeContext";
@@ -22,6 +22,7 @@ const FoodDisplay = ({ category }) => {
   const { food_list, searchTerm } = useContext(StoreContext);
   const { theme } = useTheme();
   const dark = theme === "dark";
+  const [priceRange, setPriceRange] = useState({ min: "", max: "" });
 
   const getCategoryDescription = (cat) => {
     switch (cat) {
@@ -55,16 +56,19 @@ const FoodDisplay = ({ category }) => {
     return food_list.filter(item => {
       const matchesCategory = category === "All" || category === item.category;
       const matchesSearch   = item.name.toLowerCase().includes((searchTerm || "").toLowerCase());
-      return matchesCategory && matchesSearch;
+      const min = Number(priceRange.min || 0);
+      const max = Number(priceRange.max || Number.MAX_SAFE_INTEGER);
+      const matchesPrice = item.price >= min && item.price <= max;
+      return matchesCategory && matchesSearch && matchesPrice;
     });
-  }, [food_list, category, searchTerm]);
+  }, [food_list, category, searchTerm, priceRange.min, priceRange.max]);
 
   const isLoading = food_list.length === 0;
 
   return (
     <section className={`py-10 transition-colors duration-300 ${dark ? "bg-brand-dark" : "bg-slate-50"}`} id="food-display">
       {/* Section header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col md:flex-row md:items-end md:justify-between px-5 mb-6 gap-4">
         <div>
           <h2 className={`text-2xl font-extrabold tracking-tight ${dark ? "text-white" : "text-slate-800"}`}>
             Top Dishes Near You
@@ -75,6 +79,27 @@ const FoodDisplay = ({ category }) => {
               {category !== "All" && <span className="ml-1">in <span className="text-brand-accent font-semibold">{category}</span></span>}
             </p>
           )}
+        </div>
+
+        <div className={`flex items-center gap-2 rounded-xl border px-3 py-2 ${dark ? "border-brand-border bg-brand-card" : "border-brand-lightBorder bg-white"}`}>
+          <span className={`text-xs font-semibold ${dark ? "text-brand-muted" : "text-slate-500"}`}>Price</span>
+          <input
+            type="number"
+            min="0"
+            placeholder="Min"
+            value={priceRange.min}
+            onChange={(e) => setPriceRange((p) => ({ ...p, min: e.target.value }))}
+            className={`w-20 rounded-md px-2 py-1 text-xs outline-none ${dark ? "bg-brand-dark text-slate-100" : "bg-slate-100 text-slate-700"}`}
+          />
+          <span className={dark ? "text-brand-muted" : "text-slate-400"}>-</span>
+          <input
+            type="number"
+            min="0"
+            placeholder="Max"
+            value={priceRange.max}
+            onChange={(e) => setPriceRange((p) => ({ ...p, max: e.target.value }))}
+            className={`w-20 rounded-md px-2 py-1 text-xs outline-none ${dark ? "bg-brand-dark text-slate-100" : "bg-slate-100 text-slate-700"}`}
+          />
         </div>
       </div>
 
