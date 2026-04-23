@@ -261,7 +261,7 @@ const OrderCard = ({ order, url, onCancel, onReorder, onGiveFeedback, dark }) =>
           </button>
         )}
 
-        {order.status === "Delivered" && !order?.feedback?.rating && (
+        {order.status === "Delivered" && !order?.feedback_rating && (
           <button
             onClick={() => onGiveFeedback(order)}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border transition-all duration-200 active:scale-95 ${
@@ -274,14 +274,17 @@ const OrderCard = ({ order, url, onCancel, onReorder, onGiveFeedback, dark }) =>
           </button>
         )}
 
-        {order.status === "Delivered" && order?.feedback?.rating && (
-          <div className={`px-4 py-2.5 rounded-xl border text-sm font-semibold ${
-            dark
-              ? "text-slate-200 border-white/10 bg-white/5"
-              : "text-slate-700 border-slate-200 bg-slate-50"
-          }`}>
-            Your rating: <span className="text-brand-accent">{order.feedback.rating}/5</span>
-          </div>
+        {order.status === "Delivered" && order?.feedback_rating && (
+          <button
+            disabled
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border opacity-60 cursor-not-allowed ${
+              dark
+                ? "text-slate-300 border-white/10 bg-white/5"
+                : "text-slate-500 border-slate-200 bg-slate-50"
+            }`}
+          >
+            ⭐ Feedback Given
+          </button>
         )}
 
         <button

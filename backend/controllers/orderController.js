@@ -30,7 +30,7 @@ const ERROR_MESSAGES = {
   CANNOT_CANCEL: "Only orders in 'Food Processing' state can be cancelled",
   FEEDBACK_ONLY_AFTER_DELIVERED: "Feedback can be submitted only after the order is delivered",
   FEEDBACK_ALREADY_SUBMITTED: "Feedback already submitted for this order",
-  FEEDBACK_NOT_SUPPORTED: "Feedback storage is not configured (missing `orders.feedback` column)",
+  FEEDBACK_NOT_SUPPORTED: "Feedback storage is not configured (missing `feedback_rating`, `feedback_comment` columns)",
 };
 
 const handleServiceError = (res, error, fallback = "An unexpected error occurred") => {
