@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import Navbar from "./components/Navbar/Navbar";
-import { Route, Routes } from "react-router-dom";
+import { Route, Routes, Navigate } from "react-router-dom";
 import Home from "./pages/Home/Home";
 import Cart from "./pages/Cart/Cart";
 import PlaceOrder from "./pages/PlaceOrder/PlaceOrder";
@@ -20,6 +20,7 @@ import Track from "./pages/Track/Track";
 import Profile from "./pages/Profile/Profile";
 import PrivacyPolicy from "./pages/PrivacyPolicy/PrivacyPolicy";
 import AiChatbot from "./components/AiChatbot/AiChatbot";
+import ProtectedRiderRoute from "./components/ProtectedRiderRoute/ProtectedRiderRoute";
 
 const App = () => {
   const [showLogin, setShowLogin] = useState(false);
