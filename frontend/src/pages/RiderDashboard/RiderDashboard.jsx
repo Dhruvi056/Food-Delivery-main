@@ -43,7 +43,7 @@ const RiderDashboard = () => {
     // Socket setup
     const userId = localStorage.getItem("userId");
     const socket = connectSocket(userId);
-    socket.emit('join_rider');
+    socket.emit('join_rider', userId);   // pass riderId so backend can join rider_<id> room
 
     socket.on('food_ready', () => {
       toast.info("New order ready for pickup!", { theme: "dark" });
@@ -102,7 +102,7 @@ const RiderDashboard = () => {
   const handleAdvance = async () => {
     if (!activeOrder) return;
     try {
-      const res = await api.post('/api/rider/advance', { orderId: activeOrder._id });
+      const res = await api.post('/api/rider/advance', { orderId: activeOrder.id });
       if (res.data.success) {
         setActiveOrder(res.data.data.status === 'Delivered' ? null : res.data.data);
         if (res.data.data.status === 'Delivered') toast.success("Delivery completed!");
@@ -152,7 +152,7 @@ const RiderDashboard = () => {
               <div className="active-badge">ACTIVE</div>
               <div className="active-main">
                 <div className="active-info">
-                  <h3>#{activeOrder._id.slice(-8).toUpperCase()}</h3>
+                  <h3>#{activeOrder.id.slice(-8).toUpperCase()}</h3>
                   <p className="status-tag">{activeOrder.status}</p>
                   <div className="address-box">
                     <strong>Delivery Address:</strong>
@@ -180,13 +180,13 @@ const RiderDashboard = () => {
           <h2 className="section-title">Available Orders ({availableOrders.length})</h2>
           <div className="order-grid">
             {availableOrders.map(order => (
-              <div key={order._id} className="pool-card glass">
+              <div key={order.id} className="pool-card glass">
                 <div className="pool-header">
                   <span>{order.items.length} Items</span>
                   <span className="pool-price">₹{order.amount}</span>
                 </div>
                 <p className="pool-address">{order.address.street}, {order.address.city}</p>
-                <button className="btn-claim" onClick={() => handleClaim(order._id)}>Claim Order</button>
+                <button className="btn-claim" onClick={() => handleClaim(order.id)}>Claim Order</button>
               </div>
             ))}
             {availableOrders.length === 0 && (

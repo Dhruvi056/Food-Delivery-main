@@ -9,6 +9,15 @@ import {
   handleStripeWebhook,
   getOrderById,
 } from "../services/orderService.js";
+import { logger } from '../utils/logger.js';
+
+// Stripe webhook is only active when a real secret is configured.
+// COD order creation and status updates never touch this route — they go
+// through /api/order/place and /api/order/status respectively.
+const webhookConfigured =
+  !!process.env.STRIPE_WEBHOOK_SECRET &&
+  !process.env.STRIPE_WEBHOOK_SECRET.startsWith('your_') &&
+  process.env.STRIPE_WEBHOOK_SECRET.trim() !== '';
 
 const ERROR_MESSAGES = {
   UNAUTHORIZED: "You are not authorised to perform this action",
@@ -35,7 +44,7 @@ const placeOrder = async (req, res) => {
     }
     res.json({ success: true, session_url: result.session_url });
   } catch (error) {
-    console.error("placeOrder error:", error);
+    logger.error('placeOrder error:', error);
     handleServiceError(res, error, "Error placing order");
   }
 };
@@ -49,7 +58,7 @@ const verifyOrder = async (req, res) => {
     }
     res.json({ success: false, message: "Not Paid" });
   } catch (error) {
-    console.error("verifyOrder error:", error);
+    logger.error('verifyOrder error:', error);
     handleServiceError(res, error, "Error verifying order");
   }
 };
@@ -116,6 +125,12 @@ const cancelOrder = async (req, res) => {
 };
 
 const stripeWebhook = async (req, res) => {
+  // Guard: skip processing entirely when the webhook secret is a placeholder.
+  if (!webhookConfigured) {
+    logger.warn('[Stripe] Webhook skipped — STRIPE_WEBHOOK_SECRET is not configured.');
+    return res.status(200).send('ok');
+  }
+
   try {
     const io = req.app.get("io");
     await handleStripeWebhook(req.body, req.headers["stripe-signature"], io);
@@ -124,7 +139,7 @@ const stripeWebhook = async (req, res) => {
     if (error.message?.startsWith("WEBHOOK_SIGNATURE_FAILED")) {
       return res.status(400).send(error.message.replace("WEBHOOK_SIGNATURE_FAILED: ", ""));
     }
-    console.error("stripeWebhook error:", error);
+    logger.error('stripeWebhook error:', error);
     res.status(500).json({ success: false, message: "Webhook error" });
   }
 };

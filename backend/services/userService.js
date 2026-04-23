@@ -8,6 +8,7 @@ import {
   sendPasswordResetEmail,
 } from "../utils/emailService.js";
 import insforge from "../config/insforge.js";
+import { logger } from '../utils/logger.js';
 
 // ── Token Helpers ──────────────────────────────────────────────────────────────
 
@@ -69,12 +70,12 @@ export const initiateLogin = async (email, password) => {
   const twoFactorEnabled = process.env.CHECK_2FA_ENABLED === 'true';
 
   if (!twoFactorEnabled) {
-    console.log("⚠️  2FA disabled or SMTP not configured — bypassing for:", email);
+    logger.warn(`⚠️  2FA disabled or SMTP not configured — bypassing for: ${email}`);
     const accessToken = createAccessToken(user.id, user.role);
     const refreshToken = createRefreshToken(user.id);
     const hashedRefresh = await bcrypt.hash(refreshToken, 10);
     await updateUser(user.id, { refresh_token: hashedRefresh });
-    return { token: accessToken, refreshToken, role: user.role, name: user.name, skip2FA: true };
+    return { token: accessToken, refreshToken, role: user.role, name: user.name, userId: user.id, skip2FA: true };
   }
 
   const code = generateOTP();
@@ -122,7 +123,7 @@ export const completeTwoFA = async (email, code) => {
     refresh_token: hashedRefresh,
   });
 
-  return { token: accessToken, refreshToken, role: user.role, name: user.name };
+  return { token: accessToken, refreshToken, role: user.role, name: user.name, userId: user.id };
 };
 
 /**
@@ -157,7 +158,7 @@ export const registerNewUser = async ({ name, email, password }) => {
 
   await updateUser(newUser.id, { refresh_token: hashedRefresh });
 
-  return { token: accessToken, refreshToken, role: newUser.role || "user", name: newUser.name };
+  return { token: accessToken, refreshToken, role: newUser.role || "user", name: newUser.name, userId: newUser.id };
 };
 
 /**

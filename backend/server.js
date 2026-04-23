@@ -13,7 +13,7 @@ import notificationRouter from "./routes/notificationRoute.js";
 import { generalLimiter } from "./middleware/rateLimiter.js";
 import { initSocket } from "./utils/socket.js";
 import { stripeWebhook } from "./controllers/orderController.js";
-import authenticate from "./middleware/auth.js";
+import { logger } from "./utils/logger.js";
 // app config
 const app = express();
 // In test mode use port 0 (OS picks a free ephemeral port) to prevent
@@ -43,7 +43,7 @@ app.use("/api/user", userRouter);
 app.use("/api/cart", cartRouter);
 app.use("/api/order", orderRouter);
 app.use("/api/coupon", couponRouter);
-app.use("/api/rider", authenticate, riderRouter);
+app.use("/api/rider", riderRouter);  // auth + requireRole('rider') applied inside riderRoute.js
 app.use("/api/notifications", notificationRouter);
 
 import swaggerUi from "swagger-ui-express";
@@ -56,14 +56,14 @@ app.get("/", (req, res) => {
 });
 
 server.listen(port, () => {
-  console.log(`🚀 BiteBlitz server started on port: ${port}`);
-  console.log(`📦 Database: InsForge PostgreSQL`);
-  console.log(`📚 API Docs: http://localhost:${port}/api-docs`);
+  logger.info(`🚀 BiteBlitz server started on port: ${port}`);
+  logger.info(`📦 Database: InsForge PostgreSQL`);
+  logger.info(`📚 API Docs: http://localhost:${port}/api-docs`);
 });
 
 // Global error handler
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  logger.error(err.stack);
   res.status(err.status || 500).json({
     success: false,
     message: err.message || "Internal Server Error",

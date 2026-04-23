@@ -1,33 +1,6 @@
-# BiteBlitz Food Delivery Application 🍔🚀
+# BiteBlitz - Enterprise Food Delivery Ecosystem
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Docker Support](https://img.shields.io/badge/docker-containerized-028bb8)](https://www.docker.com/)
-[![React](https://img.shields.io/badge/React-20232A?style=flat&logo=react&logoColor=61DAFB)](https://react.dev)
-[![NodeJS](https://img.shields.io/badge/Node.js-339933?style=flat&logo=nodedotjs&logoColor=white)](https://nodejs.org)
-[![MongoDB](https://img.shields.io/badge/MongoDB-4EA94B?style=flat&logo=mongodb&logoColor=white)](https://www.mongodb.com/)
-
-**BiteBlitz** is a full-stack, real-time food delivery platform featuring an enterprise-grade architecture. Built using the **MERN** stack (MongoDB, Express.js, React.js, Node.js), this platform offers seamless operations for Customers, Administrators, and Kitchen Staff. 
-
-This project goes far beyond a standard student portfolio application by integrating robust security measures, real-time WebSockets, automated email notifications, and an advanced payment architecture using Stripe Native Webhooks.
-
----
-
-## 🌟 Key Features
-
-### 1. Enterprise-Grade Security & Authentication
-- **JWT & Refresh Token Rotation:** Highly secure session management ensuring users stay logged in without exposing long-lived access tokens.
-- **XSS & NoSQL Injection Protection:** Hardened backend using `express-mongo-sanitize` and `xss-filters` to physically block malicious database injections and sanitize payloads.
-- **Cryptographic Password Resets:** Secure 1-hour expiry tokens that automatically email users password-reset links using **Nodemailer**.
-
-### 2. Real-Time Order Tracking (WebSockets)
-- Integrated **Socket.io** to provide users with split-second, real-time UI updates on their order statuses (e.g., transitioning from "Processing" to "Out for Delivery").
-- Implemented a live **Delivery ETA Countdown Timer** synced precisely with timestamps generated on the Node.js server.
-
-### 3. Advanced Payment & Cart Architecture
-- **Stripe Webhooks:** Replaced easily exploitable return URLs with true, cryptographically verified Stripe Webhooks. This guarantees users actually completed payments before marking orders as verified in the DB.
-- **Cash on Delivery (COD) Flow:** Built an alternative checkout logic routing around Stripe, gracefully flagging the order for Admins to Collect Cash.
-- **Dynamic Coupon & Promo System:** Fully functional code logic that securely calculates percentages and flat-rate discounts on the backend, mitigating frontend price-tampering exploits.
-
 ### 4. Application Performance & UX Polish
 - **Skeleton Loaders:** Elegant CSS-animated pulsing placeholders that seamlessly display while waiting for database queries, eliminating jarring layout-shifts on slow network connections.
 - **Infinite MongoDB Pagination:** Optimized Order History fetching algorithms using Mongoose `.skip()` and `.limit()` variables to query subsets of items sequentially (Load More).

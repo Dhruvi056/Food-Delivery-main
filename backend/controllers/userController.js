@@ -10,6 +10,7 @@ import {
   removeUserAddress,
   getUserAddresses,
 } from "../services/userService.js";
+import { logger } from '../utils/logger.js';
 
 const ERROR_MESSAGES = {
   USER_NOT_FOUND:            "User doesn't exist",
@@ -31,7 +32,7 @@ const ERROR_MESSAGES = {
 const handleServiceError = (res, error, fallback = "An unexpected error occurred") => {
   // Always log the raw error so issues are diagnosable in server logs
   if (!ERROR_MESSAGES[error.message]) {
-    console.error("[userController] Unhandled service error:", error.message);
+    logger.error('[userController] Unhandled service error:', error);
   }
   const msg = ERROR_MESSAGES[error.message] || fallback;
   res.json({ success: false, message: msg });

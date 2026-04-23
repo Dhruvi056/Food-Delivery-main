@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { logger } from './logger.js';
 
 // ==================== EMAIL NOTIFICATIONS ====================
 
@@ -28,10 +29,10 @@ const sendEmail = async (to, subject, html, attachments = []) => {
                 html,
                 attachments,
             });
-            console.log(`✉️  Email sent to ${to}: ${subject}`);
+            logger.info(`✉️  Email sent to ${to}: ${subject}`);
             return true;
         } catch (error) {
-            console.error("Email failed:", error.message);
+            logger.error('Email failed:', error);
         }
     }
     // Dev fallback
@@ -104,8 +105,13 @@ export const sendStatusUpdateEmail = async (email, order, newStatus) => {
 
 // ==================== SMS NOTIFICATIONS (TWILIO) ====================
 
+const twilioEnabled =
+    process.env.TWILIO_ACCOUNT_SID && !process.env.TWILIO_ACCOUNT_SID.startsWith('your_') &&
+    process.env.TWILIO_AUTH_TOKEN && !process.env.TWILIO_AUTH_TOKEN.startsWith('your_') &&
+    process.env.TWILIO_PHONE_NUMBER && !process.env.TWILIO_PHONE_NUMBER.startsWith('your_');
+
 const sendSMS = async (phone, message) => {
-    if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER) {
+    if (twilioEnabled) {
         try {
             const twilio = (await import("twilio")).default;
             const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
@@ -114,14 +120,14 @@ const sendSMS = async (phone, message) => {
                 from: process.env.TWILIO_PHONE_NUMBER,
                 to: phone,
             });
-            console.log(`📱 SMS sent to ${phone}`);
+            logger.info(`📱 SMS sent to ${phone}`);
             return true;
         } catch (error) {
-            console.error("SMS failed:", error.message);
+            logger.error('SMS failed:', error);
         }
+    } else {
+        logger.warn('[Twilio] SMS skipped — Twilio is not configured.');
     }
-    // Dev fallback
-    console.log(`📱 [SMS] To: ${phone} | Message: ${message}`);
     return true;
 };
 

@@ -48,7 +48,7 @@ describe("Security Cross-Role Access Attack Vectors", () => {
   });
 
   it("SEC-3: Public should not access notifications", async () => {
-    const res = await request(app).get("/api/notification/");
+    const res = await request(app).get("/api/notifications/");
     
     // Should be caught by authMiddleware before controller
     expect(res.body.success).toBe(false);

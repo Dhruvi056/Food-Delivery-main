@@ -22,10 +22,7 @@ const Footer = () => {
         <div className="footer-content-left">
           <img src={assets.logo} alt="BiteBlitz Logo" className="bg-white rounded-[10px]" style={{ padding: '4px 12px' }} />
           <p>
-            Lorem ipsum dolor sit, amet consectetur adipisicing elit. Cumque
-            nostrum iure suscipit maiores non harum incidunt unde magnam
-            molestias ipsum qui vel aut natus aspernatur ipsa dignissimos,
-            numquam assumenda deserunt.
+            BiteBlitz is a robust, single-vendor food delivery application designed to empower a specific restaurant or cloud kitchen with full control over the digital ordering experience. By moving away from third-party aggregators, BiteBlitz provides a direct connection between the brand and the customer, enabling personalized loyalty programs, data ownership, and higher profit margins.
           </p>
         </div>
         <div className="footer-content-center">
@@ -40,7 +37,7 @@ const Footer = () => {
           <h2>Get in touch</h2>
           <ul>
             <li style={{ cursor: "pointer" }} onClick={() => toast.success("Copied Phone Number!")}>+91 9726927561</li>
-            <li style={{ cursor: "pointer" }} onClick={() => window.location.href = "mailto:info@concatstring.com"}>info@concatstring.com</li>
+            <li style={{ cursor: "pointer" }} onClick={() => window.location.href = "mailto:info@biteblitz.com"}>info@biteblitz.com</li>
           </ul>
         </div>
       </div>

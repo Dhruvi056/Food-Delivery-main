@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import insforge from "../config/insforge.js";
+import { logger } from '../utils/logger.js';
 
 const authMiddleware = async (req, res, next) => {
   const { token } = req.headers;
@@ -21,7 +22,7 @@ const authMiddleware = async (req, res, next) => {
         message: "Session expired. Please refresh your token.",
       });
     }
-    console.log(error);
+    logger.error('Auth middleware — invalid token', error);
     res.json({ success: false, message: "Invalid token. Please login again." });
   }
 };

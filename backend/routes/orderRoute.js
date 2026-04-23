@@ -23,7 +23,7 @@ orderRouter.post("/place", authMiddleware, paymentLimiter, validatePlaceOrder, p
 orderRouter.post("/verify", paymentLimiter, validateVerifyOrder, verifyOrder);
 orderRouter.post("/status", authMiddleware, requireRole('admin'), validateUpdateStatus, updateStatus);
 orderRouter.post("/refund", authMiddleware, requireRole('admin'), refundOrder);
-orderRouter.post("/cancel", authMiddleware, requireRole('admin'), cancelOrder);
+orderRouter.post("/cancel", authMiddleware, cancelOrder);
 orderRouter.get("/userorders", authMiddleware, userOrders);
 orderRouter.get("/list", authMiddleware, requireRole('admin'), listOrders);
 orderRouter.get("/:orderId", authMiddleware, getOrderDetails);

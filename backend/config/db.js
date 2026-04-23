@@ -1,4 +1,5 @@
 import insforge from "./insforge.js";
+import { logger } from '../utils/logger.js';
 
 /**
  * Generic database query wrapper for InsForge PostgreSQL.
@@ -11,7 +12,7 @@ export const dbQuery = async (table, callback) => {
   const { data, error } = await callback(query);
   
   if (error) {
-    console.error(`DB Error [${table}]:`, error.message);
+    logger.error(`DB Error [${table}]:`, error);
     throw new Error(error.message);
   }
   

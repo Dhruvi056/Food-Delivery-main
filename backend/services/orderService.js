@@ -7,6 +7,7 @@ import {
 } from "../utils/notificationService.js";
 import { computeTax } from "../utils/taxUtils.js";
 import insforge from "../config/insforge.js";
+import { logger } from '../utils/logger.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -246,7 +247,7 @@ export const verifyOrderPayment = async (orderId, success, io) => {
       const session = await stripe.checkout.sessions.retrieve(preOrder.stripe_session_id);
       paymentIntentId = session.payment_intent;
     } catch (err) {
-      console.error("Error retrieving Stripe session:", err);
+      logger.error('Error retrieving Stripe session:', err);
     }
   }
 
@@ -280,10 +281,10 @@ export const verifyOrderPayment = async (orderId, success, io) => {
     });
 
     if (user?.email) {
-      sendOrderConfirmation(user.email, remapOrder(order)).catch(console.error);
+      sendOrderConfirmation(user.email, remapOrder(order)).catch(err => logger.error('sendOrderConfirmation failed:', err));
     }
     if (order.address?.phone) {
-      sendOrderConfirmationSMS(order.address.phone, remapOrder(order)).catch(console.error);
+      sendOrderConfirmationSMS(order.address.phone, remapOrder(order)).catch(err => logger.error('sendOrderConfirmationSMS failed:', err));
     }
   }
 
@@ -391,10 +392,10 @@ export const changeOrderStatus = async (userId, orderId, status, io) => {
     }
 
     if (customer?.email) {
-      sendStatusUpdateEmail(customer.email, remapOrder(order), status).catch(console.error);
+      sendStatusUpdateEmail(customer.email, remapOrder(order), status).catch(err => logger.error('sendStatusUpdateEmail failed:', err));
     }
     if (order.address?.phone) {
-      sendStatusUpdateSMS(order.address.phone, status).catch(console.error);
+      sendStatusUpdateSMS(order.address.phone, status).catch(err => logger.error('sendStatusUpdateSMS failed:', err));
     }
   }
 
@@ -447,10 +448,10 @@ export const processRefund = async (userId, orderId, reason, io) => {
   });
 
   if (customer?.email) {
-    sendStatusUpdateEmail(customer.email, remapOrder(refundedOrder), "Refunded").catch(console.error);
+    sendStatusUpdateEmail(customer.email, remapOrder(refundedOrder), "Refunded").catch(err => logger.error('sendStatusUpdateEmail (refund) failed:', err));
   }
   if (refundedOrder.address?.phone) {
-    sendStatusUpdateSMS(refundedOrder.address.phone, "Refunded").catch(console.error);
+    sendStatusUpdateSMS(refundedOrder.address.phone, "Refunded").catch(err => logger.error('sendStatusUpdateSMS (refund) failed:', err));
   }
 
   return remapOrder(refundedOrder);
@@ -477,7 +478,7 @@ export const cancelUserOrder = async (userId, orderId, io) => {
         reason: "requested_by_customer",
       });
     } catch (stripeErr) {
-      console.error("Stripe refund failed during cancellation:", stripeErr);
+      logger.error('Stripe refund failed during cancellation:', stripeErr);
     }
   }
 
@@ -511,7 +512,7 @@ export const cancelUserOrder = async (userId, orderId, io) => {
   });
 
   if (customer?.email) {
-    sendStatusUpdateEmail(customer.email, remapOrder(cancelledOrder), "Cancelled").catch(console.error);
+    sendStatusUpdateEmail(customer.email, remapOrder(cancelledOrder), "Cancelled").catch(err => logger.error('sendStatusUpdateEmail (cancel) failed:', err));
   }
 
   return remapOrder(cancelledOrder);
@@ -522,6 +523,14 @@ export const cancelUserOrder = async (userId, orderId, io) => {
  */
 export const handleStripeWebhook = async (rawBody, signature, io) => {
   const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+  // Redundant safety-net: the controller guard fires first; this protects
+  // against direct service-layer calls when the secret is still a placeholder.
+  if (!endpointSecret || endpointSecret.startsWith('your_') || endpointSecret.trim() === '') {
+    logger.warn('[Stripe] Webhook skipped — STRIPE_WEBHOOK_SECRET is not configured.');
+    return;
+  }
+
   let event;
 
   try {
@@ -576,14 +585,14 @@ export const handleStripeWebhook = async (rawBody, signature, io) => {
           date: order.date,
         });
 
-        console.log(`✅ Webhook: Order ${order.id} confirmed and paid!`);
+        logger.info(`✅ Webhook: Order ${order.id} confirmed and paid!`);
       }
     } catch (err) {
-      console.error("Error processing completed checkout session:", err);
+      logger.error('Error processing completed checkout session:', err);
     }
   } else if (event.type === "payment_intent.payment_failed") {
     const paymentIntent = event.data.object;
-    console.log(`❌ Webhook: Payment failed for intent: ${paymentIntent.id}`);
+    logger.info(`❌ Webhook: Payment failed for intent: ${paymentIntent.id}`);
     try {
       const { data: order } = await insforge.database
         .from("orders")
@@ -598,7 +607,7 @@ export const handleStripeWebhook = async (rawBody, signature, io) => {
           .eq("id", order.id);
       }
     } catch (err) {
-      console.error("Error processing failed payment intent:", err);
+      logger.error('Error processing failed payment intent:', err);
     }
   }
 };

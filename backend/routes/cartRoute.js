@@ -12,7 +12,7 @@ const cartRouter = express.Router();
 
 cartRouter.post("/add", authMiddleware, validateCartItem, addToCart);
 cartRouter.post("/remove", authMiddleware, validateCartItem, removeFromCart);
-cartRouter.post("/get", authMiddleware, getCart);
+cartRouter.get("/get", authMiddleware, getCart);
 cartRouter.post("/set", authMiddleware, setCart);
 
 export default cartRouter;

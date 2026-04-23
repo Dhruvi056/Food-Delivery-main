@@ -8,7 +8,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { FiUploadCloud, FiCheck, FiPlus, FiEdit3 } from "react-icons/fi";
 import { FaFire } from "react-icons/fa";
 
-const CATEGORIES = ["Salad", "Rolls", "Deserts", "Sandwich", "Cake", "Pure Veg", "Pasta", "Noodles"];
+const CATEGORIES = ["Salad", "Rolls", "Deserts", "Sandwich", "Cake", "Pure Veg", "Pasta", "Noodles", "Pizza"];
 
 const InputField = ({ label, icon: Icon, required, ...props }) => (
   <div className="flex flex-col gap-2">

@@ -289,9 +289,8 @@ const MyOrders = () => {
   const fetchOrders = async (pageNum = 1) => {
     setIsLoading(true);
     try {
-      const res = await axios.post(
+      const res = await axios.get(
         `${url}/api/order/userorders?page=${pageNum}&limit=5`,
-        {},
         { headers: { token } }
       );
       if (res.data.success) {

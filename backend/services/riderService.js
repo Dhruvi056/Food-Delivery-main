@@ -46,7 +46,6 @@ export const claimOrder = async (orderId, riderId) => {
     q
       .update({
         rider_id: riderId,
-        claimed_at: new Date().toISOString(),
       })
       .eq("id", orderId)
       .is("rider_id", null) // Atomic check

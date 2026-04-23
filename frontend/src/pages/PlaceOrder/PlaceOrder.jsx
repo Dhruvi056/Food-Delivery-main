@@ -40,7 +40,7 @@ const PlaceOrder = () => {
   const location = useLocation();
   const orderedForSomeoneElse = location.state?.orderForSomeoneElse || false;
 
-  const { getTotalCartAmount, token, food_list, cartItems, url, promoData } = useContext(StoreContext);
+  const { getTotalCartAmount, token, food_list, cartItems, setCartItems, url, promoData } = useContext(StoreContext);
   
   const [data, setData] = useState({
     firstName: "",
@@ -174,6 +174,7 @@ const PlaceOrder = () => {
       let response = await axios.post(url + "/api/order/place", orderData, { headers: { token } });
       if (response.data.success) {
         if (paymentMethod === "COD") {
+          setCartItems({});
           toast.success(response.data.message || "Order placed successfully");
           navigate("/myorders");
         } else {

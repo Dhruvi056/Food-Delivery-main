@@ -62,20 +62,20 @@ const List = ({ url }) => {
   };
 
   const removeFood = async (foodId) => {
-    const res = await axios.post(`/api/food/remove`, { id: foodId }, { headers: { token } });
+    const res = await axios.post(`${url}/api/food/remove`, { id: foodId }, { headers: { token } });
     await fetchList();
     res.data.success ? toast.success(res.data.message) : toast.error("Error");
   };
 
   const recoverFood = async (foodId) => {
-    const res = await axios.post(`/api/food/recover`, { id: foodId }, { headers: { token } });
+    const res = await axios.post(`${url}/api/food/recover`, { id: foodId }, { headers: { token } });
     await fetchList();
     res.data.success ? toast.success(res.data.message) : toast.error("Error recovering item");
   };
 
   const toggleAvailability = async (id, current) => {
     const res = await axios.post(
-      `/api/food/update-availability`,
+      `${url}/api/food/update-availability`,
       { id, isAvailable: !current },
       { headers: { token } }
     );

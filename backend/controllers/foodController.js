@@ -8,6 +8,7 @@ import {
   updateFoodItem,
 } from "../services/foodService.js";
 import { getIO } from "../utils/socket.js";
+import { logger } from '../utils/logger.js';
 
 // ── Error message map (service error code → user-facing message) ───────────────
 const ERROR_MESSAGES = {
@@ -15,7 +16,7 @@ const ERROR_MESSAGES = {
 };
 
 const handleServiceError = (res, error) => {
-  console.error("[foodController] Service error:", error.message);
+  logger.error('[foodController] Service error:', error);
   const msg = ERROR_MESSAGES[error.message] || error.message || "An unexpected error occurred";
   res.json({ success: false, message: msg });
 };
@@ -38,7 +39,7 @@ const addFood = async (req, res) => {
         category: food.category,
       });
     } catch (socketError) {
-      console.warn("[foodController] socket emit failed:", socketError.message);
+      logger.warn(`[foodController] socket emit failed: ${socketError.message}`);
     }
     res.json({ success: true, message: "Food Added", data: food });
   } catch (error) {
@@ -51,7 +52,7 @@ const listFood = async (req, res) => {
     const foods = await listFoodItems();
     res.json({ success: true, data: foods });
   } catch (error) {
-    console.error("listFood error:", error);
+    logger.error('listFood error:', error);
     res.json({ success: false, message: "Error fetching food list" });
   }
 };

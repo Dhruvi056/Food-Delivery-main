@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { logger } from './logger.js';
 
 // Create reusable transporter
 const createTransporter = () => {
@@ -46,18 +47,20 @@ export const send2FAEmail = async (email, code) => {
                 subject: "🔐 Your BiteBlitz Login Code",
                 html: htmlContent,
             });
-            console.log(`✉️  2FA email sent to ${email}`);
+            logger.info(`✉️  2FA email sent to ${email}`);
             return true;
         } catch (error) {
-            console.error("Email send failed:", error.message);
+            logger.error('Email send failed:', error);
             // Fall through to console log
         }
     }
 
     // Development fallback: log OTP to console
-    console.log(`\n${"=".repeat(50)}`);
-    console.log(`  🔑 2FA CODE for ${email}: ${code}`);
-    console.log(`${"=".repeat(50)}\n`);
+    logger.info(`
+${'='.repeat(50)}`);
+    logger.info(`  🔑 2FA CODE for ${email}: ${code}`);
+    logger.info(`${'='.repeat(50)}
+`);
     return true;
 };
 
@@ -84,16 +87,18 @@ export const sendPasswordResetEmail = async (email, resetUrl) => {
                 subject: "🔑 Reset Your BiteBlitz Password",
                 html: htmlContent,
             });
-            console.log(`✉️  Password reset email sent to ${email}`);
+            logger.info(`✉️  Password reset email sent to ${email}`);
             return true;
         } catch (error) {
-            console.error("Email send failed:", error.message);
+            logger.error('Email send failed:', error);
         }
     }
 
     // Development fallback
-    console.log(`\n${"=".repeat(50)}`);
-    console.log(`  🔗 PASSWORD RESET LINK for ${email}:\n  ${resetUrl}`);
-    console.log(`${"=".repeat(50)}\n`);
+    logger.info(`
+${'='.repeat(50)}`);
+    logger.info(`  🔗 PASSWORD RESET LINK for ${email}:\n  ${resetUrl}`);
+    logger.info(`${'='.repeat(50)}
+`);
     return true;
 };

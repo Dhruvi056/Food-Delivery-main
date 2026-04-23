@@ -40,6 +40,7 @@ const LoginPopup = ({ setShowLogin }) => {
           localStorage.setItem("token", response.data.token);
           localStorage.setItem("userName", response.data.name || "");
           localStorage.setItem("userEmail", data.email || "");
+          localStorage.setItem("userId", response.data.userId || "");
           if (response.data.refreshToken) {
             localStorage.setItem("refreshToken", response.data.refreshToken);
           }
@@ -96,6 +97,7 @@ const LoginPopup = ({ setShowLogin }) => {
         localStorage.setItem("token", response.data.token);
         localStorage.setItem("userName", response.data.name || "");
         localStorage.setItem("userEmail", response.data.email || data.email || "");
+        localStorage.setItem("userId", response.data.userId || "");
         if (response.data.refreshToken) {
           localStorage.setItem("refreshToken", response.data.refreshToken);
         }
