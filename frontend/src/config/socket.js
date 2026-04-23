@@ -1,28 +1,52 @@
-import { io } from 'socket.io-client';
+import { io } from "socket.io-client";
+import { resolveSocketUserId } from "../utils/jwt.js";
 
 let socket = null;
 
+function emitJoinUser(uid) {
+  if (socket?.connected && uid) {
+    socket.emit("join_user", uid);
+  }
+}
+
+/**
+ * Single shared Socket.IO client. Re-joins user room whenever user id can be resolved.
+ */
 export function connectSocket(userId) {
-  if (socket?.connected) return socket;
-  
+  const token = localStorage.getItem("token");
+  if (!token) return null;
+
+  const uid = resolveSocketUserId(userId);
   const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:4000";
-  
-  socket = io(apiUrl, {
-    auth: { token: localStorage.getItem('token') } // Note: we use 'token' as key in previous turn fixes
-  });
-  
-  socket.on('connect', () => {
-    socket.emit('join_user', userId);
-    console.log('🔌 Socket connected and joined user room:', userId);
-  });
-  
+
+  if (socket?.connected) {
+    emitJoinUser(uid);
+    return socket;
+  }
+
+  if (!socket) {
+    socket = io(apiUrl, {
+      auth: { token },
+    });
+    socket.on("connect", () => {
+      const id = resolveSocketUserId();
+      emitJoinUser(id);
+      if (id) {
+        console.log("Socket connected; joined user room:", id);
+      }
+    });
+  }
+
   return socket;
 }
 
-export function getSocket() { return socket; }
+export function getSocket() {
+  return socket;
+}
 
 export function disconnectSocket() {
   if (socket) {
+    socket.removeAllListeners();
     socket.disconnect();
     socket = null;
   }

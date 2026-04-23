@@ -23,6 +23,7 @@ const STATUS_CONFIG = {
 };
 
 const getMeta = (status) => STATUS_CONFIG[status] || STATUS_CONFIG["Food Processing"];
+const normalizeStatus = (status) => (status === "Out for delivery" ? "Out for Delivery" : status);
 
 // ── Live ping badge ────────────────────────────────────────────────────────────
 const LiveBadge = () => (
@@ -122,16 +123,23 @@ const OrderCard = ({ order, onStatusChange, onRefund, isHighlighted }) => {
             )}
           </div>
 
-          {/* Feedback (if submitted) */}
-          {order?.feedback?.rating && (
+          {/* Feedback (matches API: feedback_rating / feedback_comment on order row) */}
+          {order?.feedback_rating != null && Number(order.feedback_rating) > 0 && (
             <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/25 p-3.5 space-y-1.5">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-300">Feedback</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-300">Customer feedback</p>
               <p className="text-sm text-slate-200 font-semibold">
-                Rating: <span className="text-brand-accent">{order.feedback.rating}/5</span>
+                Rating: <span className="text-brand-accent">{order.feedback_rating}/5</span>
               </p>
-              {order.feedback.comment && (
+              {order.feedback_comment && (
                 <p className="text-xs text-emerald-200/80 leading-relaxed">
-                  {order.feedback.comment}
+                  {order.feedback_comment}
+                </p>
+              )}
+              {order.feedback_given_at && (
+                <p className="text-[10px] text-brand-muted">
+                  {new Date(order.feedback_given_at).toLocaleString("en-IN", {
+                    day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
+                  })}
                 </p>
               )}
             </div>
@@ -160,7 +168,11 @@ const OrderCard = ({ order, onStatusChange, onRefund, isHighlighted }) => {
           </div>
 
           {/* Refund / Refunded info */}
-          {order.payment && !order.isRefunded && (order.status === "Food Processing" || order.status === "Out for delivery") && (
+          {order.payment &&
+            !order.isRefunded &&
+            (order.status === "Food Processing" ||
+              order.status === "Ready for Pickup" ||
+              order.status === "Out for Delivery") && (
             <button
               onClick={() => onRefund(order._id)}
               className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold text-red-400 border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 transition-all duration-200 active:scale-95"
@@ -198,7 +210,9 @@ const Orders = ({ url }) => {
 
   const fetchAllOrder = async () => {
     const res = await axios.get(`${url}/api/order/list`, { headers: { token } });
-    if (res.data.success) setOrders(res.data.data);
+    if (res.data.success) {
+      setOrders((res.data.data || []).map((o) => ({ ...o, status: normalizeStatus(o.status) })));
+    }
     setLoading(false);
   };
 
@@ -267,9 +281,10 @@ const Orders = ({ url }) => {
 
     // Real-time sync: rider advances status → admin sees it immediately
     socket.on("order_status_update", ({ orderId, status }) => {
+      const normalized = normalizeStatus(status);
       setOrders(prev =>
         prev.map(o =>
-          String(o._id) === String(orderId) ? { ...o, status } : o
+          String(o._id) === String(orderId) ? { ...o, status: normalized } : o
         )
       );
     });
@@ -277,7 +292,7 @@ const Orders = ({ url }) => {
     return () => socket.disconnect();
   }, [token, url]);
 
-  const filterTabs = ["All", "Food Processing", "Out for delivery", "Delivered", "Refunded", "Cancelled"];
+  const filterTabs = ["All", "Food Processing", "Ready for Pickup", "Out for Delivery", "Delivered", "Refunded", "Cancelled"];
 
   const filtered = orders.filter(o => {
     const name = `${o.address?.firstName || ""} ${o.address?.lastName || ""}`.toLowerCase();
@@ -524,3 +539,4 @@ const Orders = ({ url }) => {
 };
 
 export default Orders;
+ 

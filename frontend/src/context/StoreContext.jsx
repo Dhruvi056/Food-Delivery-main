@@ -2,6 +2,8 @@ import api from "../config/axios.js";
 import { createContext, useEffect, useState, useCallback } from "react";
 import { toast } from "react-toastify";
 import { connectSocket, disconnectSocket } from "../config/socket.js";
+import { resolveSocketUserId } from "../utils/jwt.js";
+import { localDateKey } from "../utils/dateKey.js";
 
 export const StoreContext = createContext(null);
 
@@ -14,7 +16,22 @@ const StoreContextProvider = (props) => {
   const [food_list, setFoodList] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [promoData, setPromoData] = useState({ code: "", discountType: "", discountValue: 0 });
-  const [calorieHistory, setCalorieHistory] = useState({});
+  const [calorieHistory, setCalorieHistory] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("bb_calorie_history") || "{}");
+    } catch {
+      return {};
+    }
+  });
+  /** Days the user opened the calorie page (local YYYY-MM-DD), for “days tracked” when cart was empty. */
+  const [calorieVisitDays, setCalorieVisitDays] = useState(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem("bb_calorie_visit_days") || "[]");
+      return Array.isArray(raw) ? raw.filter((x) => typeof x === "string") : [];
+    } catch {
+      return [];
+    }
+  });
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -47,66 +64,136 @@ const StoreContextProvider = (props) => {
     }
   };
 
-  // ── Socket Event Handlers ─────────────────────────────────────────────────────
-
-  const setupSocketListeners = useCallback((socket) => {
-    socket.on('order_status_update', (data) => {
-      toast.info(`Order Status: ${data.status}`, { theme: "dark" });
-      fetchNotifications();
-    });
-
-    // Admin/status updates use this event name in parts of the backend
-    socket.on('order_update', (data) => {
-      toast.info(`📦 Order ${data.status}`, { theme: "dark", toastId: `order_${data.orderId}` });
-      fetchNotifications();
-    });
-
-    socket.on('payment_confirmed', (data) => {
-      toast.success("Payment Confirmed! Tracking your order...", { theme: "dark" });
-      fetchNotifications();
-      window.location.href = `/track/${data.orderId}`;
-    });
-
-    socket.on('order_completed', () => {
-      // For riders
-      fetchNotifications();
-    });
-
-    socket.on('new_notification', () => {
-      fetchNotifications();
-    });
-
-    socket.on("new_food_added", (data) => {
-      toast.info(`New dish added: ${data?.name || "Fresh item"}`, { theme: "dark" });
-      fetchFoodList();
-      fetchNotifications();
-    });
-  }, [fetchNotifications]);
-
-  // ── Authentication Logic ──────────────────────────────────────────────────────
-
-  useEffect(() => {
-    if (token) {
-      // Decode token for userId (or just assume server handles join_user on connect if we send token in auth)
-      // For now, we'll try to extract userId if available or just use a generic join
-      const userId = localStorage.getItem("userId"); 
-      if (userId) {
-        const socket = connectSocket(userId);
-        setupSocketListeners(socket);
-      }
-    } else {
-      disconnectSocket();
-    }
-  }, [token, setupSocketListeners]);
-
   // ── Food & Cart Logic ─────────────────────────────────────────────────────────
 
-  const fetchFoodList = async () => {
+  const fetchFoodList = useCallback(async () => {
     const response = await api.get("/api/food/list");
     if (response.data.success) {
       setFoodList(response.data.data);
     }
-  };
+  }, []);
+
+  // ── Socket: one connection, join user room from JWT or localStorage ───────────
+
+  useEffect(() => {
+    if (!token) {
+      disconnectSocket();
+      return;
+    }
+
+    const uid = resolveSocketUserId();
+    const socket = connectSocket(uid);
+    if (!socket) return;
+
+    const onOrderStatus = (data) => {
+      if (data?.status) {
+        toast.info(`Order: ${data.status}`, {
+          theme: "dark",
+          toastId: `order_status_${data.orderId}_${data.status}`,
+        });
+      }
+      fetchNotifications();
+    };
+
+    const onOrderUpdate = (data) => {
+      if (data?.status) {
+        toast.info(`Order: ${data.status}`, {
+          theme: "dark",
+          toastId: `order_update_${data.orderId}_${data.status}`,
+        });
+      }
+      fetchNotifications();
+    };
+
+    const onPaymentConfirmed = (data) => {
+      toast.success("Payment Confirmed! Tracking your order...", { theme: "dark" });
+      fetchNotifications();
+      window.location.href = `/track/${data.orderId}`;
+    };
+
+    const onOrderCompleted = () => {
+      fetchNotifications();
+    };
+
+    const onNewNotification = () => {
+      fetchNotifications();
+    };
+
+    const onNewFoodAdded = (data) => {
+      toast.info(`New dish added: ${data?.name || "Fresh item"}`, { theme: "dark" });
+      fetchFoodList();
+      fetchNotifications();
+    };
+
+    socket.on("order_status_update", onOrderStatus);
+    socket.on("order_update", onOrderUpdate);
+    socket.on("payment_confirmed", onPaymentConfirmed);
+    socket.on("order_completed", onOrderCompleted);
+    socket.on("new_notification", onNewNotification);
+    socket.on("new_food_added", onNewFoodAdded);
+
+    return () => {
+      socket.off("order_status_update", onOrderStatus);
+      socket.off("order_update", onOrderUpdate);
+      socket.off("payment_confirmed", onPaymentConfirmed);
+      socket.off("order_completed", onOrderCompleted);
+      socket.off("new_notification", onNewNotification);
+      socket.off("new_food_added", onNewFoodAdded);
+    };
+  }, [token, fetchNotifications, fetchFoodList]);
+
+  const recordTodayCartCalories = useCallback((total) => {
+    const today = localDateKey();
+    setCalorieHistory((prev) => ({
+      ...prev,
+      [today]: Math.max(Number(prev[today]) || 0, Number(total) || 0),
+    }));
+  }, []);
+
+  const recordCaloriePageVisit = useCallback(() => {
+    const k = localDateKey();
+    setCalorieVisitDays((prev) => (prev.includes(k) ? prev : [...prev, k]));
+  }, []);
+
+  const getCurrentMonthCalories = useCallback(() => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = now.getMonth();
+    const dailyData = {};
+    let totalCalories = 0;
+    Object.entries(calorieHistory).forEach(([dateStr, cal]) => {
+      const d = new Date(`${dateStr}T12:00:00`);
+      if (d.getFullYear() === y && d.getMonth() === m) {
+        const n = Number(cal) || 0;
+        dailyData[dateStr] = n;
+        totalCalories += n;
+      }
+    });
+    const visitInMonth = calorieVisitDays.filter((dateStr) => {
+      const d = new Date(`${dateStr}T12:00:00`);
+      return d.getFullYear() === y && d.getMonth() === m;
+    });
+    const daysWithKcalKeys = Object.keys(dailyData).filter((k) => (Number(dailyData[k]) || 0) > 0);
+    const daysWithKcal = daysWithKcalKeys.length;
+    const daysTracked = new Set([...daysWithKcalKeys, ...visitInMonth]).size;
+    return { dailyData, totalCalories, daysTracked, daysWithKcal };
+  }, [calorieHistory, calorieVisitDays]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("bb_calorie_history", JSON.stringify(calorieHistory));
+    } catch {
+      /* ignore quota */
+    }
+  }, [calorieHistory]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("bb_calorie_visit_days", JSON.stringify(calorieVisitDays));
+    } catch {
+      /* ignore quota */
+    }
+  }, [calorieVisitDays]);
 
   const loadCartData = async (token) => {
     try {
@@ -174,7 +261,7 @@ const StoreContextProvider = (props) => {
       }
     }
     init();
-  }, [token, fetchNotifications]);
+  }, [token, fetchNotifications, fetchFoodList]);
 
   const contextValue = {
     food_list,
@@ -200,7 +287,11 @@ const StoreContextProvider = (props) => {
     searchTerm,
     setSearchTerm,
     promoData,
-    setPromoData
+    setPromoData,
+    calorieHistory,
+    recordTodayCartCalories,
+    recordCaloriePageVisit,
+    getCurrentMonthCalories,
   };
 
   return (

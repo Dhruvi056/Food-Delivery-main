@@ -1,10 +1,10 @@
-import React, { useContext, useEffect, useState, useCallback } from "react";
+import React, { useCallback, useContext, useEffect, useRef, useState } from "react";
 import "./MyOrders.css"; // kept as fallback — not deleted
 import { StoreContext } from "../../context/StoreContext";
 import { useTheme } from "../../context/ThemeContext";
 import axios from "axios";
 import { assets } from "../../assets/frontend_assets/assets";
-import { io as socketIO } from "socket.io-client";
+import { connectSocket } from "../../config/socket";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
 import {
@@ -15,17 +15,20 @@ import {
 // ── Status Pipeline Config ─────────────────────────────────────────────────────
 const STATUS_PIPELINE = [
   { key: "Food Processing", label: "Processing",   icon: FiPackage,     color: "text-orange-400", bg: "bg-orange-500/20",  border: "border-orange-500/30" },
-  { key: "Out for delivery", label: "Out for Delivery", icon: FiTruck,  color: "text-blue-400",   bg: "bg-blue-500/20",    border: "border-blue-500/30"   },
+  { key: "Ready for Pickup", label: "Ready for Pickup", icon: FiClock,  color: "text-yellow-400", bg: "bg-yellow-500/20",  border: "border-yellow-500/30" },
+  { key: "Out for Delivery", label: "Out for Delivery", icon: FiTruck,  color: "text-blue-400",   bg: "bg-blue-500/20",    border: "border-blue-500/30"   },
   { key: "Delivered",        label: "Delivered",   icon: FiCheckCircle, color: "text-emerald-400", bg: "bg-emerald-500/20", border: "border-emerald-500/30" },
 ];
 
 const STATUS_META = {
   "Food Processing": { color: "text-orange-400", bg: "bg-orange-500/15", border: "border-orange-500/30", dot: "bg-orange-400" },
-  "Out for delivery": { color: "text-blue-400",   bg: "bg-blue-500/15",   border: "border-blue-500/30", dot: "bg-blue-400" },
+  "Ready for Pickup": { color: "text-yellow-400", bg: "bg-yellow-500/15", border: "border-yellow-500/30", dot: "bg-yellow-400" },
+  "Out for Delivery": { color: "text-blue-400",   bg: "bg-blue-500/15",   border: "border-blue-500/30", dot: "bg-blue-400" },
   "Delivered":        { color: "text-emerald-400", bg: "bg-emerald-500/15",border: "border-emerald-500/30", dot: "bg-emerald-400" },
   "Cancelled":        { color: "text-red-400",     bg: "bg-red-500/15",    border: "border-red-500/30", dot: "bg-red-400" },
   "Refunded":         { color: "text-purple-400",  bg: "bg-purple-500/15", border: "border-purple-500/30", dot: "bg-purple-400" },
 };
+const normalizeStatus = (status) => (status === "Out for delivery" ? "Out for Delivery" : status);
 
 // ── Countdown Timer ────────────────────────────────────────────────────────────
 const CountdownTimer = ({ estimatedDelivery }) => {
@@ -205,7 +208,10 @@ const AiSummary = ({ orderId, url, token, dark }) => {
 // ── Order Card ─────────────────────────────────────────────────────────────────
 const OrderCard = ({ order, url, token, onCancel, onReorder, onGiveFeedback, dark }) => {
   const meta = STATUS_META[order.status] || STATUS_META["Food Processing"];
-  const isActive = order.status === "Food Processing" || order.status === "Out for delivery";
+  const isActive =
+    order.status === "Food Processing" ||
+    order.status === "Ready for Pickup" ||
+    order.status === "Out for Delivery";
   const formattedDate = new Date(order.date).toLocaleDateString("en-IN", {
     day: "numeric", month: "short", year: "numeric",
   });
@@ -376,8 +382,10 @@ const MyOrders = () => {
   const [feedbackRating, setFeedbackRating] = useState(5);
   const [feedbackComment, setFeedbackComment] = useState("");
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+  const tabsContainerRef = useRef(null);
 
-  const fetchOrders = async (pageNum = 1) => {
+  const fetchOrders = useCallback(async (pageNum = 1) => {
+    if (!token) return;
     setIsLoading(true);
     try {
       const res = await axios.get(
@@ -385,43 +393,70 @@ const MyOrders = () => {
         { headers: { token } }
       );
       if (res.data.success) {
-        setData(prev => pageNum === 1 ? res.data.data : [...prev, ...res.data.data]);
+        const normalized = (res.data.data || []).map((o) => ({ ...o, status: normalizeStatus(o.status) }));
+        setData((prev) => (pageNum === 1 ? normalized : [...prev, ...normalized]));
         setTotalPages(res.data.totalPages);
       }
     } catch (err) {
       console.error(err);
     }
     setIsLoading(false);
-  };
+  }, [token, url]);
 
   useEffect(() => {
-    if (token) { setPage(1); fetchOrders(1); }
-  }, [token]);
+    if (token) {
+      setPage(1);
+      fetchOrders(1);
+    }
+  }, [token, fetchOrders]);
 
-  // Socket.io — real-time status updates
+  const handleRealtimeStatusUpdate = useCallback(
+    (update) => {
+      const status = normalizeStatus(update?.status);
+      const orderId = update?.orderId;
+      if (!status || orderId == null) return;
+
+      setData((prev) => {
+        const has = prev.some((o) => String(o._id) === String(orderId));
+        if (!has) {
+          fetchOrders(1);
+          return prev;
+        }
+        return prev.map((o) => (String(o._id) === String(orderId) ? { ...o, status } : o));
+      });
+
+      if (status === "Out for Delivery") {
+        setActiveFilter("Out for Delivery");
+        setTimeout(() => {
+          tabsContainerRef.current
+            ?.querySelector('[data-status-tab="Out for Delivery"]')
+            ?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+        }, 50);
+      }
+    },
+    [fetchOrders]
+  );
+
+  // Shared socket from StoreContext path — same room as notifications
   useEffect(() => {
     if (!token) return;
-    // Backend socket requires JWT token in handshake auth.
-    const socket = socketIO(url, { auth: { token } });
-    try {
-      const payload = JSON.parse(atob(token.split(".")[1]));
-      if (payload.id) socket.emit("join_user", payload.id);
-    } catch (e) { /* ignore */ }
+    const socket = connectSocket();
+    if (!socket) return;
 
-    socket.on("order_update", (update) => {
-      toast.info(`📦 Order ${update.status}`, { toastId: `order_${update.orderId}` });
-      setData(prev => prev.map(o =>
-        o._id === update.orderId ? { ...o, status: update.status } : o
-      ));
-    });
+    socket.on("order_update", handleRealtimeStatusUpdate);
+    socket.on("order_status_update", handleRealtimeStatusUpdate);
 
-    socket.on("connect_error", (err) => {
-      // Avoid noisy spam; one toast is enough if auth fails.
+    const onErr = (err) => {
       console.error("Socket connect_error:", err?.message || err);
-    });
+    };
+    socket.on("connect_error", onErr);
 
-    return () => socket.disconnect();
-  }, [token, url]);
+    return () => {
+      socket.off("order_update", handleRealtimeStatusUpdate);
+      socket.off("order_status_update", handleRealtimeStatusUpdate);
+      socket.off("connect_error", onErr);
+    };
+  }, [token, handleRealtimeStatusUpdate]);
 
   const confirmCancel = async () => {
     if (!cancelModalOrderId || isCancelling) return;
@@ -502,7 +537,7 @@ const MyOrders = () => {
   };
 
   // Filter tabs
-  const filterTabs = ["All", "Food Processing", "Out for delivery", "Delivered", "Cancelled"];
+  const filterTabs = ["All", "Food Processing", "Ready for Pickup", "Out for Delivery", "Delivered", "Cancelled"];
   const filteredData = activeFilter === "All"
     ? data
     : data.filter(o => o.status === activeFilter);
@@ -510,7 +545,12 @@ const MyOrders = () => {
   // Stats bar
   const stats = {
     total: data.length,
-    active: data.filter(o => o.status === "Food Processing" || o.status === "Out for delivery").length,
+    active: data.filter(
+      (o) =>
+        o.status === "Food Processing" ||
+        o.status === "Ready for Pickup" ||
+        o.status === "Out for Delivery"
+    ).length,
     delivered: data.filter(o => o.status === "Delivered").length,
     cancelled: data.filter(o => o.status === "Cancelled").length,
   };
@@ -558,10 +598,14 @@ const MyOrders = () => {
 
         {/* ── Filter Tabs ── */}
         {data.length > 0 && (
-          <div className={`flex gap-2 overflow-x-auto pb-2 mb-6 scrollbar-hide`}>
+          <div
+            ref={tabsContainerRef}
+            className={`flex gap-2 overflow-x-auto pb-2 mb-6 scrollbar-hide`}
+          >
             {filterTabs.map(tab => (
               <button
                 key={tab}
+                data-status-tab={tab}
                 onClick={() => setActiveFilter(tab)}
                 className={[
                   "px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap border transition-all duration-200 shrink-0",
@@ -731,3 +775,4 @@ const MyOrders = () => {
 };
 
 export default MyOrders;
+
