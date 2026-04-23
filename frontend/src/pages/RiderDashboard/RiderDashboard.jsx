@@ -39,14 +39,13 @@ const RiderDashboard = () => {
 
   useEffect(() => {
     init();
-    
-    // Socket setup
+
     const userId = localStorage.getItem("userId");
     const socket = connectSocket(userId);
-    socket.emit('join_rider', userId);   // pass riderId so backend can join rider_<id> room
+    socket.emit('join_rider', userId);
 
     socket.on('food_ready', () => {
-      toast.info("New order ready for pickup!", { theme: "dark" });
+      toast.info("🛵 New order ready for pickup!", { theme: "dark" });
       fetchAvailableOrders();
     });
 
@@ -55,9 +54,27 @@ const RiderDashboard = () => {
       fetchAvailableOrders();
     });
 
+    // ── Real-time sync: admin or rider advances status ──
+    socket.on('order_status_update', (payload) => {
+      setActiveOrder(prev => {
+        if (!prev) return prev;
+        if (String(prev.id) === String(payload.orderId)) {
+          if (payload.status === 'Delivered' || payload.status === 'Cancelled') {
+            fetchAvailableOrders();
+            return null;
+          }
+          return { ...prev, status: payload.status };
+        }
+        return prev;
+      });
+      // Refresh pool too (in case admin updated something)
+      fetchAvailableOrders();
+    });
+
     return () => {
       socket.off('food_ready');
       socket.off('order_completed');
+      socket.off('order_status_update');
     };
   }, []);
 
@@ -75,7 +92,7 @@ const RiderDashboard = () => {
             console.error("Location update failed:", err);
           }
         },
-        (err) => toast.error("Location access denied"),
+        () => toast.error("Location access denied"),
         { enableHighAccuracy: true }
       );
       setWatchId(id);
@@ -87,12 +104,19 @@ const RiderDashboard = () => {
   }, [isSharingLocation]);
 
   const handleClaim = async (orderId) => {
+    // Double-guard: if rider already has an active order, block UI-side too
+    if (activeOrder) {
+      toast.warning("Complete your current delivery first!", { theme: "dark" });
+      return;
+    }
     try {
       const res = await api.post('/api/rider/claim', { orderId });
       if (res.data.success) {
-        toast.success("Order claimed!");
+        toast.success("Order claimed! 🛵");
         setActiveOrder(res.data.data);
         fetchAvailableOrders();
+      } else {
+        toast.error(res.data.message || "Failed to claim order");
       }
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to claim order");
@@ -104,20 +128,28 @@ const RiderDashboard = () => {
     try {
       const res = await api.post('/api/rider/advance', { orderId: activeOrder.id });
       if (res.data.success) {
-        setActiveOrder(res.data.data.status === 'Delivered' ? null : res.data.data);
-        if (res.data.data.status === 'Delivered') toast.success("Delivery completed!");
+        const updated = res.data.data;
+        if (updated.status === 'Delivered') {
+          toast.success("🎉 Delivery completed!");
+          setActiveOrder(null);
+          fetchAvailableOrders();
+        } else {
+          setActiveOrder(updated);
+          toast.info(`Status updated: ${updated.status}`);
+        }
       }
     } catch (err) {
-      toast.error("Failed to update status");
+      toast.error(err.response?.data?.message || "Failed to update status");
     }
   };
 
   const getAdvanceButtonLabel = (status) => {
     switch (status) {
+      case 'Food Processing':  return "Mark as Picked Up";
       case 'Ready for Pickup': return "Mark as Picked Up";
       case 'Out for Delivery': return "Mark as Delivered";
-      case 'Delivered': return "Completed";
-      default: return "Next Step";
+      case 'Delivered':        return "Delivered ✓";
+      default:                 return "Next Step";
     }
   };
 
@@ -133,10 +165,10 @@ const RiderDashboard = () => {
         <div className="location-toggle glass">
           <span>Share Location</span>
           <label className="switch">
-            <input 
-              type="checkbox" 
-              checked={isSharingLocation} 
-              onChange={(e) => setIsSharingLocation(e.target.checked)} 
+            <input
+              type="checkbox"
+              checked={isSharingLocation}
+              onChange={(e) => setIsSharingLocation(e.target.checked)}
             />
             <span className="slider round"></span>
           </label>
@@ -156,11 +188,11 @@ const RiderDashboard = () => {
                   <p className="status-tag">{activeOrder.status}</p>
                   <div className="address-box">
                     <strong>Delivery Address:</strong>
-                    <p>{activeOrder.address.street}, {activeOrder.address.city}</p>
+                    <p>{activeOrder.address?.street}, {activeOrder.address?.city}</p>
                   </div>
                 </div>
-                <button 
-                  className="btn-advance" 
+                <button
+                  className="btn-advance"
                   onClick={handleAdvance}
                   disabled={activeOrder.status === 'Delivered'}
                 >
@@ -177,16 +209,29 @@ const RiderDashboard = () => {
 
         {/* Available Orders Section */}
         <section className="pool-section">
-          <h2 className="section-title">Available Orders ({availableOrders.length})</h2>
+          <h2 className="section-title">
+            Available Orders ({availableOrders.length})
+            {activeOrder && (
+              <span className="pool-locked-hint"> — Complete active delivery to claim</span>
+            )}
+          </h2>
           <div className="order-grid">
             {availableOrders.map(order => (
-              <div key={order.id} className="pool-card glass">
+              <div key={order.id} className={`pool-card glass ${activeOrder ? 'pool-card--locked' : ''}`}>
                 <div className="pool-header">
-                  <span>{order.items.length} Items</span>
+                  <span>{order.items?.length} Items</span>
                   <span className="pool-price">₹{order.amount}</span>
                 </div>
-                <p className="pool-address">{order.address.street}, {order.address.city}</p>
-                <button className="btn-claim" onClick={() => handleClaim(order.id)}>Claim Order</button>
+                <p className="pool-address">{order.address?.street}, {order.address?.city}</p>
+                {activeOrder ? (
+                  <button className="btn-claim btn-claim--disabled" disabled title="Complete your current delivery first">
+                    🔒 Busy
+                  </button>
+                ) : (
+                  <button className="btn-claim" onClick={() => handleClaim(order.id)}>
+                    Claim Order
+                  </button>
+                )}
               </div>
             ))}
             {availableOrders.length === 0 && (

@@ -34,9 +34,14 @@ const ERROR_MESSAGES = {
 };
 
 const handleServiceError = (res, error, fallback = "An unexpected error occurred") => {
+  // Handle prefix-based messages like ORDER_LOCKED: ...
+  if (error.message?.startsWith("ORDER_LOCKED:")) {
+    return res.status(400).json({ success: false, message: error.message.replace("ORDER_LOCKED: ", "") });
+  }
   const msg = ERROR_MESSAGES[error.message] || error.message || fallback;
   res.json({ success: false, message: msg });
 };
+
 
 // ── Controllers ────────────────────────────────────────────────────────────────
 

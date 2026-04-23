@@ -6,6 +6,8 @@ import {
   advanceOrder,
   updateLocation,
   getActiveOrder,
+  getRiderDeliveries,
+  getRiderEarnings,
 } from "../services/riderService.js";
 
 const riderRouter = express.Router();
@@ -27,6 +29,9 @@ riderRouter.post("/claim", async (req, res, next) => {
     const result = await claimOrder(req.body.orderId, req.userId);
     res.json({ success: true, data: result });
   } catch (err) {
+    if (err.message === "RIDER_ALREADY_BUSY") {
+      return res.status(400).json({ success: false, message: "You already have an active delivery. Complete it before claiming another." });
+    }
     next(err);
   }
 });
@@ -53,6 +58,26 @@ riderRouter.post("/location", async (req, res, next) => {
 riderRouter.get("/active", async (req, res, next) => {
   try {
     const result = await getActiveOrder(req.userId);
+    res.json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/rider/deliveries — all orders assigned to this rider (history)
+riderRouter.get("/deliveries", async (req, res, next) => {
+  try {
+    const result = await getRiderDeliveries(req.userId);
+    res.json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/rider/earnings — earnings summary for this rider
+riderRouter.get("/earnings", async (req, res, next) => {
+  try {
+    const result = await getRiderEarnings(req.userId);
     res.json({ success: true, data: result });
   } catch (err) {
     next(err);

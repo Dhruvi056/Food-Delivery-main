@@ -1,0 +1,190 @@
+.deliveries-page {
+  padding: 40px 0;
+}
+
+.deliveries-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 32px;
+}
+
+.deliveries-header h1 {
+  font-size: 2rem;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+
+.deliveries-sub {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.btn-back-dash {
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-decoration: none;
+  border: 1px solid var(--border);
+  padding: 6px 16px;
+  border-radius: 20px;
+  transition: var(--transition);
+}
+
+.btn-back-dash:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.deliveries-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.summary-stat {
+  padding: 20px 24px;
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.summary-num {
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--accent);
+  line-height: 1;
+}
+
+.summary-label {
+  font-size: 0.78rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Filter tabs */
+.filter-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  margin-bottom: 24px;
+}
+
+.filter-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: var(--transition);
+}
+
+.filter-tab:hover {
+  border-color: var(--accent2);
+  color: var(--accent2);
+}
+
+.filter-tab--active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+.filter-count {
+  font-size: 0.72rem;
+  opacity: 0.7;
+}
+
+/* List */
+.deliveries-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.delivery-card {
+  padding: 20px 24px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+}
+
+.delivery-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.delivery-id {
+  font-family: monospace;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--accent2);
+  margin-right: 12px;
+}
+
+.delivery-status-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.delivery-amount {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.delivery-card-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 16px;
+}
+
+.delivery-label {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.delivery-card-body p {
+  font-size: 0.88rem;
+  color: var(--text);
+}
+
+.deliveries-empty {
+  padding: 60px;
+  text-align: center;
+  color: var(--muted);
+  border-radius: var(--radius-lg);
+  border: 1px dashed var(--border);
+}
+
+.deliveries-loading {
+  padding: 100px;
+  text-align: center;
+  color: var(--muted);
+}
+
+@media (max-width: 600px) {
+  .deliveries-summary { grid-template-columns: 1fr 1fr; }
+  .deliveries-header { flex-direction: column; gap: 12px; }
+}

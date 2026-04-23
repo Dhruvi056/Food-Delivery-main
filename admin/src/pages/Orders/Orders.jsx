@@ -15,7 +15,8 @@ import {
 // ── Status config ──────────────────────────────────────────────────────────────
 const STATUS_CONFIG = {
   "Food Processing": { color: "text-orange-400", bg: "bg-orange-500/15", border: "border-orange-500/30", dot: "bg-orange-400", icon: FiPackage },
-  "Out for delivery": { color: "text-blue-400",   bg: "bg-blue-500/15",   border: "border-blue-500/30",   dot: "bg-blue-400",   icon: FiTruck },
+  "Out for Delivery": { color: "text-blue-400",   bg: "bg-blue-500/15",   border: "border-blue-500/30",   dot: "bg-blue-400",   icon: FiTruck },
+  "Ready for Pickup": { color: "text-yellow-400", bg: "bg-yellow-500/15", border: "border-yellow-500/30", dot: "bg-yellow-400", icon: FiTruck },
   "Delivered":        { color: "text-emerald-400", bg: "bg-emerald-500/15",border: "border-emerald-500/30",dot: "bg-emerald-400",icon: FiCheckCircle },
   "Refunded":         { color: "text-purple-400",  bg: "bg-purple-500/15", border: "border-purple-500/30", dot: "bg-purple-400", icon: FiRefreshCw },
   "Cancelled":        { color: "text-red-400",     bg: "bg-red-500/15",    border: "border-red-500/30",    dot: "bg-red-400",    icon: FiXCircle },
@@ -121,20 +122,26 @@ const OrderCard = ({ order, onStatusChange, onRefund, isHighlighted }) => {
             )}
           </div>
 
-          {/* Status selector */}
+          {/* Status selector — locked for terminal statuses */}
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] font-semibold uppercase tracking-wider text-brand-muted">Update Status</label>
-            <select
-              value={order.status}
-              onChange={(e) => onStatusChange(e, order._id)}
-              disabled={order.isRefunded || order.status === "Refunded" || order.status === "Cancelled"}
-              className="w-full px-3 py-2.5 bg-brand-cardHover border border-brand-border rounded-xl text-white text-sm outline-none focus:border-brand-accent transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <option value="Food Processing">Food Processing</option>
-              <option value="Out for delivery">Out for Delivery</option>
-              <option value="Delivered">Delivered</option>
-              <option value="Refunded" disabled>Refunded</option>
-            </select>
+            {["Delivered", "Cancelled", "Refunded"].includes(order.status) ? (
+              <div className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border ${meta.bg} ${meta.border}`}>
+                <StatusIcon className={`w-4 h-4 ${meta.color}`} />
+                <span className={`text-sm font-semibold ${meta.color}`}>{order.status} — Locked</span>
+              </div>
+            ) : (
+              <select
+                value={order.status}
+                onChange={(e) => onStatusChange(e, order._id)}
+                className="w-full px-3 py-2.5 bg-brand-cardHover border border-brand-border rounded-xl text-white text-sm outline-none focus:border-brand-accent transition-all duration-200 cursor-pointer"
+              >
+                <option value="Food Processing">Food Processing</option>
+                <option value="Ready for Pickup">Ready for Pickup</option>
+                <option value="Out for Delivery">Out for Delivery</option>
+                <option value="Delivered">Delivered</option>
+              </select>
+            )}
           </div>
 
           {/* Refund / Refunded info */}
@@ -211,16 +218,27 @@ const Orders = ({ url }) => {
     fetchAllOrder();
   }, []);
 
-  // Socket.io — real-time new orders
+  // Socket.io — real-time new orders + status updates from rider
   useEffect(() => {
     if (!token) return;
     const socket = socketIO(url);
     socket.emit("join_admin");
+
     socket.on("new_order", (newOrder) => {
       toast.success("🆕 New order received!", { toastId: `new_order_${newOrder.orderId}` });
       setNewOrderIds(prev => new Set([...prev, String(newOrder.orderId)]));
       fetchAllOrder();
     });
+
+    // Real-time sync: rider advances status → admin sees it immediately
+    socket.on("order_status_update", ({ orderId, status }) => {
+      setOrders(prev =>
+        prev.map(o =>
+          String(o._id) === String(orderId) ? { ...o, status } : o
+        )
+      );
+    });
+
     return () => socket.disconnect();
   }, [token, url]);
 
