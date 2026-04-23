@@ -114,8 +114,11 @@ const LoginPopup = ({ setShowLogin }) => {
         if (response.data.refreshToken) {
           localStorage.setItem("refreshToken", response.data.refreshToken);
         }
-        const successMsg = currentState === "Login" ? "🎉 Login Successful!" : "🎉 Account Created Successfully!";
-        toast.success(successMsg);
+        const successMessage =
+          currentState === "Login"
+            ? "🎉 Login Successful!"
+            : "🎉 Account Created Successfully!";
+        toast.success(successMessage);
         setShowLogin(false);
         // Role-based redirect
         const role = response.data.role;

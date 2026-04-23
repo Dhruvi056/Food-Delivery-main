@@ -133,6 +133,17 @@
     color: var(--primary);
 }
 
+.current-location-btn {
+    background: color-mix(in srgb, var(--primary) 12%, transparent);
+    color: var(--primary);
+    border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);
+    font-weight: 600;
+}
+
+.current-location-btn:hover {
+    background: color-mix(in srgb, var(--primary) 20%, transparent);
+}
+
 /* ── Dark Mode Overrides ── */
 html.dark .place-order-left,
 html.dark .place-order .cart-total {
@@ -164,6 +175,12 @@ html.dark .save-address-checkbox label,
 html.dark .payment-options label,
 html.dark .cart-total-details p {
     color: #cbd5e1;
+}
+
+html.dark .current-location-btn {
+    background: color-mix(in srgb, var(--primary) 18%, transparent);
+    border-color: color-mix(in srgb, var(--primary) 45%, transparent);
+    color: #ffd6c8;
 }
 
 html.dark .cart-total-details hr {

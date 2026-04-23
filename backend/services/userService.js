@@ -13,11 +13,16 @@ import { logger } from '../utils/logger.js';
 // ── Token Helpers ──────────────────────────────────────────────────────────────
 
 export const createAccessToken = (id, role) =>
-  jwt.sign({ id, role }, process.env.JWT_SECRET, { expiresIn: "15m" });
+  jwt.sign(
+    { id, role },
+    process.env.JWT_SECRET || "dev_jwt_secret_change_me",
+    { expiresIn: "1d" }
+  );
 
 export const createRefreshToken = (id) => {
   const secret =
-    process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET + "_refresh";
+    process.env.JWT_REFRESH_SECRET ||
+    (process.env.JWT_SECRET || "dev_jwt_secret_change_me") + "_refresh";
   return jwt.sign({ id }, secret, { expiresIn: "7d" });
 };
 

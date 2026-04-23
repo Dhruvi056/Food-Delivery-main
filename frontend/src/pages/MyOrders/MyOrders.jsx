@@ -261,7 +261,7 @@ const OrderCard = ({ order, url, onCancel, onReorder, dark }) => {
           </button>
         )}
         <button
-          onClick={() => onReorder(order.items)}
+          onClick={() => onReorder(order._id, order.items)}
           className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 active:scale-95"
           style={{ background: "linear-gradient(135deg,#e94560,#f97316)", color: "white", boxShadow: "0 4px 15px rgba(233,69,96,0.3)" }}
         >
@@ -285,6 +285,8 @@ const MyOrders = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [activeFilter, setActiveFilter] = useState("All");
+  const [cancelModalOrderId, setCancelModalOrderId] = useState(null);
+  const [isCancelling, setIsCancelling] = useState(false);
 
   const fetchOrders = async (pageNum = 1) => {
     setIsLoading(true);
@@ -326,24 +328,52 @@ const MyOrders = () => {
     return () => socket.disconnect();
   }, [token, url]);
 
-  const handleCancel = async (orderId) => {
-    if (!window.confirm("Cancel this order?")) return;
+  const confirmCancel = async () => {
+    if (!cancelModalOrderId || isCancelling) return;
+    setIsCancelling(true);
     try {
       const res = await axios.post(
         `${url}/api/order/cancel`,
-        { orderId },
+        { orderId: cancelModalOrderId },
         { headers: { token } }
       );
       if (res.data.success) { toast.success(res.data.message); fetchOrders(1); }
       else toast.error(res.data.message);
-    } catch { toast.error("Failed to cancel order"); }
+    } catch {
+      toast.error("Failed to cancel order");
+    } finally {
+      setCancelModalOrderId(null);
+      setIsCancelling(false);
+    }
   };
 
-  const handleReorder = (items) => {
-    const newCart = {};
-    items.forEach(item => { newCart[item._id] = item.quantity; });
-    replaceCart(newCart);
-    navigate("/cart");
+  const handleCancel = (orderId) => {
+    setCancelModalOrderId(orderId);
+  };
+
+  const handleReorder = async (orderId, items) => {
+    try {
+      const res = await axios.post(
+        `${url}/api/order/reorder`,
+        { orderId },
+        { headers: { token } }
+      );
+      if (res.data.success && res.data.session_url) {
+        window.location.replace(res.data.session_url);
+        return;
+      }
+      const newCart = {};
+      items.forEach(item => { newCart[item._id] = item.quantity; });
+      await replaceCart(newCart);
+      toast.info("Items added again. Please proceed to payment.");
+      navigate("/order");
+    } catch {
+      const newCart = {};
+      items.forEach(item => { newCart[item._id] = item.quantity; });
+      await replaceCart(newCart);
+      toast.info("Items added again. Please proceed to payment.");
+      navigate("/order");
+    }
   };
 
   // Filter tabs
@@ -473,6 +503,33 @@ const MyOrders = () => {
           </div>
         )}
       </div>
+
+      {cancelModalOrderId && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 px-4">
+          <div className={`w-full max-w-md rounded-2xl border p-5 ${dark ? "bg-brand-card border-brand-border" : "bg-white border-slate-200"}`}>
+            <h3 className="text-lg font-bold">Cancel this order?</h3>
+            <p className={`mt-2 text-sm ${dark ? "text-brand-muted" : "text-slate-500"}`}>
+              Your order will be marked as <strong>Cancelled</strong>. If payment is already done, refund will be initiated automatically.
+            </p>
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                onClick={() => setCancelModalOrderId(null)}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold ${dark ? "bg-white/10 text-slate-200" : "bg-slate-100 text-slate-700"}`}
+                disabled={isCancelling}
+              >
+                Keep Order
+              </button>
+              <button
+                onClick={confirmCancel}
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-red-500 hover:bg-red-600 disabled:opacity-60"
+                disabled={isCancelling}
+              >
+                {isCancelling ? "Cancelling..." : "Yes, Cancel Order"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -55,8 +55,15 @@ const StoreContextProvider = (props) => {
       fetchNotifications();
     });
 
+    // Admin/status updates use this event name in parts of the backend
+    socket.on('order_update', (data) => {
+      toast.info(`📦 Order ${data.status}`, { theme: "dark", toastId: `order_${data.orderId}` });
+      fetchNotifications();
+    });
+
     socket.on('payment_confirmed', (data) => {
       toast.success("Payment Confirmed! Tracking your order...", { theme: "dark" });
+      fetchNotifications();
       window.location.href = `/track/${data.orderId}`;
     });
 
@@ -132,6 +139,16 @@ const StoreContextProvider = (props) => {
     }
   };
 
+  const replaceCart = async (newCart) => {
+    setCartItems(newCart || {});
+    if (!token) return;
+    try {
+      await api.post("/api/cart/set", { cartItems: newCart || {} });
+    } catch (error) {
+      console.error("Error replacing cart:", error);
+    }
+  };
+
   const getTotalCartAmount = () => {
     return Object.keys(cartItems).reduce((total, itemId) => {
       const item = food_list.find(f => f._id === itemId);
@@ -165,6 +182,7 @@ const StoreContextProvider = (props) => {
     setCartItems,
     addToCart,
     removeFromCart,
+    replaceCart,
     getTotalCartAmount,
     getTotalCalories,
     fetchFoodList,

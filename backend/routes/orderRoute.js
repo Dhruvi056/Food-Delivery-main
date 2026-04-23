@@ -8,7 +8,8 @@ import {
     verifyOrder,
     refundOrder,
     cancelOrder,
-    getOrderDetails
+    getOrderDetails,
+    reorderOrder
 } from "../controllers/orderController.js";
 import { paymentLimiter } from "../middleware/rateLimiter.js";
 import {
@@ -24,6 +25,7 @@ orderRouter.post("/verify", paymentLimiter, validateVerifyOrder, verifyOrder);
 orderRouter.post("/status", authMiddleware, requireRole('admin'), validateUpdateStatus, updateStatus);
 orderRouter.post("/refund", authMiddleware, requireRole('admin'), refundOrder);
 orderRouter.post("/cancel", authMiddleware, cancelOrder);
+orderRouter.post("/reorder", authMiddleware, reorderOrder);
 orderRouter.get("/userorders", authMiddleware, userOrders);
 orderRouter.get("/list", authMiddleware, requireRole('admin'), listOrders);
 orderRouter.get("/:orderId", authMiddleware, getOrderDetails);

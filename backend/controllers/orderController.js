@@ -8,6 +8,7 @@ import {
   cancelUserOrder,
   handleStripeWebhook,
   getOrderById,
+  reorderPreviousOrder,
 } from "../services/orderService.js";
 import { logger } from '../utils/logger.js';
 
@@ -124,6 +125,16 @@ const cancelOrder = async (req, res) => {
   }
 };
 
+const reorderOrder = async (req, res) => {
+  try {
+    const io = req.app.get("io");
+    const result = await reorderPreviousOrder(req.body.userId, req.body.orderId, io);
+    res.json({ success: true, session_url: result.session_url });
+  } catch (error) {
+    handleServiceError(res, error, "Reorder failed");
+  }
+};
+
 const stripeWebhook = async (req, res) => {
   // Guard: skip processing entirely when the webhook secret is a placeholder.
   if (!webhookConfigured) {
@@ -152,6 +163,7 @@ export {
   updateStatus,
   refundOrder,
   cancelOrder,
+  reorderOrder,
   stripeWebhook,
   getOrderDetails,
 };

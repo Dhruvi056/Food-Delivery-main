@@ -82,17 +82,8 @@ const App = () => {
             <Route path="/myorders" element={<MyOrders />} />
             <Route path="/calorie" element={<Calorie />} />
             <Route path="/reset-password/:token" element={<ResetPassword />} />
-            {/* Protected rider route */}
-            <Route
-              path="/rider-dashboard"
-              element={
-                <ProtectedRiderRoute setShowLogin={setShowLogin}>
-                  <RiderDashboard />
-                </ProtectedRiderRoute>
-              }
-            />
-            {/* Legacy alias — redirect old /rider links to /rider-dashboard */}
-            <Route path="/rider" element={<Navigate to="/rider-dashboard" replace />} />
+            <Route path="/rider-dashboard" element={<RiderDashboard />} />
+            <Route path="/rider" element={<RiderDashboard />} />
             <Route path="/track/:orderId" element={<Track />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />

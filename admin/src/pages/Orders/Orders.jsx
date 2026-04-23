@@ -138,7 +138,7 @@ const OrderCard = ({ order, onStatusChange, onRefund, isHighlighted }) => {
           </div>
 
           {/* Refund / Refunded info */}
-          {order.payment && !order.isRefunded && order.status !== "Refunded" && order.status !== "Cancelled" && (
+          {order.payment && !order.isRefunded && (order.status === "Food Processing" || order.status === "Out for delivery") && (
             <button
               onClick={() => onRefund(order._id)}
               className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold text-red-400 border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 transition-all duration-200 active:scale-95"
@@ -168,6 +168,8 @@ const Orders = ({ url }) => {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [newOrderIds, setNewOrderIds] = useState(new Set());
+  const [refundModalOrderId, setRefundModalOrderId] = useState(null);
+  const [isRefunding, setIsRefunding] = useState(false);
 
   const fetchAllOrder = async () => {
     const res = await axios.get(`${url}/api/order/list`, { headers: { token } });
@@ -186,12 +188,22 @@ const Orders = ({ url }) => {
   };
 
   const refundHandler = async (orderId) => {
-    if (!window.confirm("Issue a full refund for this order?")) return;
+    setRefundModalOrderId(orderId);
+  };
+
+  const confirmRefund = async () => {
+    if (!refundModalOrderId || isRefunding) return;
+    setIsRefunding(true);
     try {
-      const res = await axios.post(`${url}/api/order/refund`, { orderId, reason: "Requested by Admin" }, { headers: { token } });
+      const res = await axios.post(`${url}/api/order/refund`, { orderId: refundModalOrderId, reason: "Requested by Admin" }, { headers: { token } });
       if (res.data.success) { toast.success("Refund processed!"); await fetchAllOrder(); }
       else toast.error(res.data.message || "Refund failed");
-    } catch { toast.error("Error during refund"); }
+    } catch {
+      toast.error("Error during refund");
+    } finally {
+      setRefundModalOrderId(null);
+      setIsRefunding(false);
+    }
   };
 
   useEffect(() => {
@@ -342,6 +354,33 @@ const Orders = ({ url }) => {
           </div>
         )}
       </div>
+
+      {refundModalOrderId && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-md rounded-2xl border border-brand-border bg-brand-card p-5">
+            <h3 className="text-lg font-bold text-white">Issue full refund?</h3>
+            <p className="mt-2 text-sm text-brand-muted">
+              This will refund the Stripe payment and mark the order as <strong className="text-purple-300">Refunded</strong>.
+            </p>
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                onClick={() => setRefundModalOrderId(null)}
+                disabled={isRefunding}
+                className="px-4 py-2 rounded-lg text-sm font-semibold bg-white/10 text-slate-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmRefund}
+                disabled={isRefunding}
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-red-500 hover:bg-red-600 disabled:opacity-60"
+              >
+                {isRefunding ? "Refunding..." : "Yes, Refund"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

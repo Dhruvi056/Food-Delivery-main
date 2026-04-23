@@ -95,8 +95,9 @@ export const placeNewOrder = async (body, io) => {
     }
   }
 
-  const taxAmount = computeTax(selectedAddress?.state, subtotal);
-  const finalAmount = subtotal + taxAmount + DELIVERY_FEE - discountValue;
+  const taxableSubtotal = Math.max(0, subtotal - discountValue);
+  const taxAmount = computeTax(selectedAddress?.state, taxableSubtotal);
+  const finalAmount = taxableSubtotal + taxAmount + DELIVERY_FEE;
   const estimatedDelivery = new Date(Date.now() + 45 * 60 * 1000).toISOString();
 
   const orderPayload = {
@@ -158,14 +159,22 @@ export const placeNewOrder = async (body, io) => {
     .single();
   if (insertError) throw new Error(insertError.message);
 
-  const line_items = body.items.map((item) => ({
-    price_data: {
-      currency: "INR",
-      product_data: { name: item.name },
-      unit_amount: item.price * 100,
-    },
-    quantity: item.quantity,
-  }));
+  const applyBite20OnStripeLineItems =
+    (body.promoCode || "").toUpperCase() === "BITE20";
+
+  const line_items = body.items.map((item) => {
+    const unit = applyBite20OnStripeLineItems
+      ? Math.round(item.price * 0.8 * 100)
+      : item.price * 100;
+    return {
+      price_data: {
+        currency: "INR",
+        product_data: { name: item.name },
+        unit_amount: unit,
+      },
+      quantity: item.quantity,
+    };
+  });
 
   line_items.push({
     price_data: {
@@ -198,15 +207,13 @@ export const placeNewOrder = async (body, io) => {
       deliveryAddress: JSON.stringify(selectedAddress)
     }
   };
-
-  if (body.promoCode === "BITE20") {
-    const stripeCoupon = await stripe.coupons.create({
-      percent_off: 20,
-      duration: "once",
-      name: "20% Special Discount",
-    });
-    sessionConfig.discounts = [{ coupon: stripeCoupon.id }];
+  const customerEmail = selectedAddress?.email || body?.address?.email;
+  if (customerEmail) {
+    sessionConfig.customer_email = customerEmail;
   }
+
+  // NOTE: We intentionally do NOT use Stripe percent_off coupons for BITE20,
+  // because Stripe applies it to delivery/tax too and totals won't match UI.
 
   const session = await stripe.checkout.sessions.create(sessionConfig);
 
@@ -223,6 +230,35 @@ export const placeNewOrder = async (body, io) => {
   }
 
   return { session_url: session.url };
+};
+
+/**
+ * Reorder an existing order and return Stripe checkout URL.
+ */
+export const reorderPreviousOrder = async (userId, orderId, io) => {
+  const { data: previousOrder, error } = await insforge.database
+    .from("orders")
+    .select()
+    .eq("id", orderId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!previousOrder) throw new Error("ORDER_NOT_FOUND");
+  if (!Array.isArray(previousOrder.items) || previousOrder.items.length === 0) {
+    throw new Error("Order has no items");
+  }
+
+  const reorderPayload = {
+    userId,
+    items: previousOrder.items,
+    address: previousOrder.delivery_address || previousOrder.address,
+    promoCode: null,
+    orderedForSomeoneElse: previousOrder.ordered_for_someone_else || false,
+    paymentMethod: "Stripe",
+  };
+
+  return placeNewOrder(reorderPayload, io);
 };
 
 /**
@@ -346,7 +382,8 @@ export const getAllOrders = async (userId) => {
   await assertAdmin(userId);
   const { data: orders, error } = await insforge.database
     .from("orders")
-    .select();
+    .select()
+    .order("date", { ascending: false });
   if (error) throw new Error(error.message);
   return (orders || []).map(remapOrder);
 };
@@ -378,6 +415,15 @@ export const changeOrderStatus = async (userId, orderId, status, io) => {
       status,
       updatedAt: new Date(),
     });
+
+    // Insert notification for customer (so dropdown shows Delivered/Processing updates)
+    await insforge.database.from("notifications").insert({
+      user_id: order.user_id,
+      type: "order_update",
+      message: `Order ${status}`,
+      order_id: order.id
+    });
+    emitSocketEvent(io, `user_${order.user_id}`, "new_notification", { orderId: order.id });
 
     if (status === "Ready for Pickup") {
       emitSocketEvent(io, "rider_room", "food_ready", {
@@ -574,7 +620,7 @@ export const handleStripeWebhook = async (rawBody, signature, io) => {
         });
 
         // Emit payment confirmation to user
-        getIO().to(`user_${order.user_id}`).emit("payment_confirmed", { orderId: order.id });
+        emitSocketEvent(io, `user_${order.user_id}`, "payment_confirmed", { orderId: order.id });
 
         emitSocketEvent(io, "admin_room", "new_order", {
           orderId: order.id,

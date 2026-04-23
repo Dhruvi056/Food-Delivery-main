@@ -40,7 +40,7 @@ const PlaceOrder = () => {
   const location = useLocation();
   const orderedForSomeoneElse = location.state?.orderForSomeoneElse || false;
 
-  const { getTotalCartAmount, token, food_list, cartItems, setCartItems, url, promoData } = useContext(StoreContext);
+  const { getTotalCartAmount, token, food_list, cartItems, setCartItems, url, promoData, userName, userEmail } = useContext(StoreContext);
   
   const [data, setData] = useState({
     firstName: "",
@@ -53,6 +53,19 @@ const PlaceOrder = () => {
     country: "",
     phone: "",
   });
+
+  useEffect(() => {
+    const persistedEmail = userEmail || localStorage.getItem("userEmail") || "";
+    const persistedName = userName || localStorage.getItem("userName") || "";
+    const [firstName = "", ...rest] = persistedName.trim().split(" ");
+    const lastName = rest.join(" ");
+    setData((prev) => ({
+      ...prev,
+      email: prev.email || persistedEmail,
+      firstName: prev.firstName || firstName,
+      lastName: prev.lastName || lastName,
+    }));
+  }, [userEmail, userName]);
 
   const [savedAddresses, setSavedAddresses] = useState([]);
   const [saveAddress, setSaveAddress] = useState(false);
@@ -154,11 +167,15 @@ const PlaceOrder = () => {
       }
     });
 
-    const taxAmt = computeTax(data.state, getTotalCartAmount() - calculateDiscount());
+    const effectiveSubtotal = Math.max(0, getTotalCartAmount() - calculateDiscount());
+    const taxAmt = computeTax(data.state, effectiveSubtotal);
     const finalAmount = getTotalCartAmount() === 0 ? 0 : getTotalCartAmount() + 50 - calculateDiscount() + taxAmt;
 
     let orderData = {
-      address: data,
+      address: {
+        ...data,
+        email: data.email || userEmail || localStorage.getItem("userEmail") || "",
+      },
       items: orderItems,
       amount: finalAmount,
       promoCode: appliedCheckoutPromo || promoData.code || null,
@@ -259,7 +276,7 @@ const PlaceOrder = () => {
                <button 
                 type="button"
                 onClick={handleGeolocation}
-                className="flex items-center gap-2 bg-[#f0fdf4] text-green-700 border border-green-200 px-3 py-1.5 rounded-lg text-sm hover:bg-green-100 transition-colors dark:bg-green-900/30 dark:border-green-800 dark:text-green-400"
+                className="current-location-btn flex items-center px-3 py-1.5 rounded-lg text-sm transition-colors"
                 disabled={fetchingLocation}
                >
                  {fetchingLocation ? (

@@ -7,7 +7,10 @@
  * @returns {number} The calculated tax amount
  */
 export const computeTax = (state, subtotal) => {
-    if (!state || !subtotal) return 0;
+    if (!subtotal) return 0;
+
+    // Match frontend behavior: use default rate when state is missing
+    if (!state) return Math.round(subtotal * 0.05);
 
     const stateLower = state.toLowerCase().trim();
 
@@ -18,8 +21,8 @@ export const computeTax = (state, subtotal) => {
 
     // Tax Rates
     const HIGH_RATE = 0.088; // 8.8%
-    const LOW_RATE = 0.04;   // 4.0%
-    const BASE_RATE = 0.065; // 6.5% standard fallback
+    const LOW_RATE = 0.02;   // 2.0%
+    const BASE_RATE = 0.05;  // 5.0% standard fallback
 
     let appliedRate = BASE_RATE;
 

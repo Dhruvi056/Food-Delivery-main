@@ -30,9 +30,9 @@ const Navbar = ({ setShowLogin }) => {
   const profileRef = useRef(null);
 
   const { 
-    getTotalCartAmount, token, setToken, searchTerm, setSearchTerm, 
+    token, setToken, searchTerm, setSearchTerm, 
     userName, setUserName, userEmail, setUserEmail,
-    notifications, unreadCount, markAllRead 
+    notifications, unreadCount, markAllRead, cartItems
   } = useContext(StoreContext);
   const { theme, toggleTheme } = useTheme();
   const dark = theme === "dark";
@@ -103,7 +103,10 @@ const Navbar = ({ setShowLogin }) => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const cartCount = getTotalCartAmount();
+  const cartCount = Object.values(cartItems || {}).reduce(
+    (sum, qty) => sum + (Number(qty) || 0),
+    0
+  );
 
   const logout = () => {
     localStorage.removeItem("token");

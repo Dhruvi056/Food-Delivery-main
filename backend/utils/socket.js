@@ -16,7 +16,7 @@ export const initSocket = (httpServer) => {
         const token = socket.handshake.auth.token || socket.handshake.headers.token;
         if (!token) return next(new Error("Authentication error"));
 
-        jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+        jwt.verify(token, process.env.JWT_SECRET || "dev_jwt_secret_change_me", (err, decoded) => {
             if (err) return next(new Error("Authentication error"));
             socket.decoded = decoded;
             next();
