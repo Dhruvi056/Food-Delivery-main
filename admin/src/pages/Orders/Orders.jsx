@@ -121,6 +121,21 @@ const OrderCard = ({ order, onStatusChange, onRefund, isHighlighted }) => {
             )}
           </div>
 
+          {/* Feedback (if submitted) */}
+          {order?.feedback?.rating && (
+            <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/25 p-3.5 space-y-1.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-300">Feedback</p>
+              <p className="text-sm text-slate-200 font-semibold">
+                Rating: <span className="text-brand-accent">{order.feedback.rating}/5</span>
+              </p>
+              {order.feedback.comment && (
+                <p className="text-xs text-emerald-200/80 leading-relaxed">
+                  {order.feedback.comment}
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Status selector */}
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] font-semibold uppercase tracking-wider text-brand-muted">Update Status</label>
@@ -214,12 +229,16 @@ const Orders = ({ url }) => {
   // Socket.io — real-time new orders
   useEffect(() => {
     if (!token) return;
-    const socket = socketIO(url);
+    // Backend socket requires JWT token in handshake auth.
+    const socket = socketIO(url, { auth: { token } });
     socket.emit("join_admin");
     socket.on("new_order", (newOrder) => {
       toast.success("🆕 New order received!", { toastId: `new_order_${newOrder.orderId}` });
       setNewOrderIds(prev => new Set([...prev, String(newOrder.orderId)]));
       fetchAllOrder();
+    });
+    socket.on("connect_error", (err) => {
+      console.error("Admin socket connect_error:", err?.message || err);
     });
     return () => socket.disconnect();
   }, [token, url]);

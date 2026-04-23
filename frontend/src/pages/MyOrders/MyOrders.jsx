@@ -151,7 +151,7 @@ const StepNodes = ({ order }) => {
 };
 
 // ── Order Card ─────────────────────────────────────────────────────────────────
-const OrderCard = ({ order, url, onCancel, onReorder, dark }) => {
+const OrderCard = ({ order, url, onCancel, onReorder, onGiveFeedback, dark }) => {
   const meta = STATUS_META[order.status] || STATUS_META["Food Processing"];
   const isActive = order.status === "Food Processing" || order.status === "Out for delivery";
   const formattedDate = new Date(order.date).toLocaleDateString("en-IN", {
@@ -260,6 +260,30 @@ const OrderCard = ({ order, url, onCancel, onReorder, dark }) => {
             Cancel Order
           </button>
         )}
+
+        {order.status === "Delivered" && !order?.feedback?.rating && (
+          <button
+            onClick={() => onGiveFeedback(order)}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border transition-all duration-200 active:scale-95 ${
+              dark
+                ? "text-emerald-300 border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20"
+                : "text-emerald-700 border-emerald-200 bg-emerald-50 hover:bg-emerald-100"
+            }`}
+          >
+            ⭐ Give Feedback
+          </button>
+        )}
+
+        {order.status === "Delivered" && order?.feedback?.rating && (
+          <div className={`px-4 py-2.5 rounded-xl border text-sm font-semibold ${
+            dark
+              ? "text-slate-200 border-white/10 bg-white/5"
+              : "text-slate-700 border-slate-200 bg-slate-50"
+          }`}>
+            Your rating: <span className="text-brand-accent">{order.feedback.rating}/5</span>
+          </div>
+        )}
+
         <button
           onClick={() => onReorder(order._id, order.items)}
           className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 active:scale-95"
@@ -288,6 +312,11 @@ const MyOrders = () => {
   const [cancelModalOrderId, setCancelModalOrderId] = useState(null);
   const [isCancelling, setIsCancelling] = useState(false);
 
+  const [feedbackOrder, setFeedbackOrder] = useState(null);
+  const [feedbackRating, setFeedbackRating] = useState(5);
+  const [feedbackComment, setFeedbackComment] = useState("");
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+
   const fetchOrders = async (pageNum = 1) => {
     setIsLoading(true);
     try {
@@ -312,7 +341,8 @@ const MyOrders = () => {
   // Socket.io — real-time status updates
   useEffect(() => {
     if (!token) return;
-    const socket = socketIO(url);
+    // Backend socket requires JWT token in handshake auth.
+    const socket = socketIO(url, { auth: { token } });
     try {
       const payload = JSON.parse(atob(token.split(".")[1]));
       if (payload.id) socket.emit("join_user", payload.id);
@@ -323,6 +353,11 @@ const MyOrders = () => {
       setData(prev => prev.map(o =>
         o._id === update.orderId ? { ...o, status: update.status } : o
       ));
+    });
+
+    socket.on("connect_error", (err) => {
+      // Avoid noisy spam; one toast is enough if auth fails.
+      console.error("Socket connect_error:", err?.message || err);
     });
 
     return () => socket.disconnect();
@@ -373,6 +408,36 @@ const MyOrders = () => {
       await replaceCart(newCart);
       toast.info("Items added again. Please proceed to payment.");
       navigate("/order");
+    }
+  };
+
+  const openFeedback = (order) => {
+    setFeedbackOrder(order);
+    setFeedbackRating(5);
+    setFeedbackComment("");
+  };
+
+  const submitFeedback = async () => {
+    if (!feedbackOrder || isSubmittingFeedback) return;
+    setIsSubmittingFeedback(true);
+    try {
+      const res = await axios.post(
+        `${url}/api/order/feedback`,
+        { orderId: feedbackOrder._id, rating: feedbackRating, comment: feedbackComment },
+        { headers: { token } }
+      );
+      if (res.data.success) {
+        toast.success("Thanks for your feedback!");
+        const updated = res.data.data;
+        setData(prev => prev.map(o => (o._id === updated._id ? updated : o)));
+        setFeedbackOrder(null);
+      } else {
+        toast.error(res.data.message || "Feedback failed");
+      }
+    } catch (e) {
+      toast.error("Feedback failed");
+    } finally {
+      setIsSubmittingFeedback(false);
     }
   };
 
@@ -482,6 +547,7 @@ const MyOrders = () => {
                 url={url}
                 onCancel={handleCancel}
                 onReorder={handleReorder}
+                onGiveFeedback={openFeedback}
                 dark={dark}
               />
             ))}
@@ -525,6 +591,75 @@ const MyOrders = () => {
                 disabled={isCancelling}
               >
                 {isCancelling ? "Cancelling..." : "Yes, Cancel Order"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {feedbackOrder && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 px-4">
+          <div className={`w-full max-w-md rounded-2xl border p-5 ${dark ? "bg-brand-card border-brand-border" : "bg-white border-slate-200"}`}>
+            <h3 className="text-lg font-bold">Give Feedback</h3>
+            <p className={`mt-1 text-sm ${dark ? "text-brand-muted" : "text-slate-500"}`}>
+              Order #{String(feedbackOrder._id).slice(-8).toUpperCase()}
+            </p>
+
+            <div className="mt-4">
+              <p className={`text-xs font-semibold uppercase tracking-wider ${dark ? "text-brand-muted" : "text-slate-400"}`}>Rating</p>
+              <div className="mt-2 flex items-center gap-2">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <button
+                    key={n}
+                    onClick={() => setFeedbackRating(n)}
+                    className={`w-10 h-10 rounded-xl border text-lg font-bold transition-all ${
+                      feedbackRating >= n
+                        ? "bg-brand-accent text-white border-brand-accent"
+                        : dark
+                          ? "bg-white/5 text-brand-muted border-white/10 hover:border-brand-accent/40"
+                          : "bg-slate-50 text-slate-400 border-slate-200 hover:border-brand-accent/40"
+                    }`}
+                    aria-label={`Rate ${n}`}
+                  >
+                    ★
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <p className={`text-xs font-semibold uppercase tracking-wider ${dark ? "text-brand-muted" : "text-slate-400"}`}>Comment</p>
+              <textarea
+                value={feedbackComment}
+                onChange={(e) => setFeedbackComment(e.target.value)}
+                rows={4}
+                placeholder="Tell us what you liked (optional)"
+                className={`mt-2 w-full px-3 py-2.5 rounded-xl border outline-none text-sm resize-none ${
+                  dark
+                    ? "bg-white/5 border-white/10 text-slate-200 placeholder:text-brand-muted focus:border-brand-accent/60"
+                    : "bg-white border-slate-200 text-slate-800 placeholder:text-slate-400 focus:border-brand-accent/60"
+                }`}
+              />
+              <p className={`mt-1 text-[10px] ${dark ? "text-brand-muted" : "text-slate-400"}`}>
+                Max 500 characters
+              </p>
+            </div>
+
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                onClick={() => setFeedbackOrder(null)}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold ${dark ? "bg-white/10 text-slate-200" : "bg-slate-100 text-slate-700"}`}
+                disabled={isSubmittingFeedback}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitFeedback}
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white"
+                style={{ background: "linear-gradient(135deg,#e94560,#f97316)" }}
+                disabled={isSubmittingFeedback}
+              >
+                {isSubmittingFeedback ? "Submitting..." : "Submit"}
               </button>
             </div>
           </div>

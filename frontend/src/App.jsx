@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import Navbar from "./components/Navbar/Navbar";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Route, Routes } from "react-router-dom";
 import Home from "./pages/Home/Home";
 import Cart from "./pages/Cart/Cart";
 import PlaceOrder from "./pages/PlaceOrder/PlaceOrder";
@@ -17,7 +17,7 @@ import RiderDashboard from "./pages/RiderDashboard/RiderDashboard";
 import Track from "./pages/Track/Track";
 import Profile from "./pages/Profile/Profile";
 import PrivacyPolicy from "./pages/PrivacyPolicy/PrivacyPolicy";
-import ProtectedRiderRoute from "./components/ProtectedRiderRoute/ProtectedRiderRoute";
+import AiChatbot from "./components/AiChatbot/AiChatbot";
 
 const App = () => {
   const [showLogin, setShowLogin] = useState(false);
@@ -91,6 +91,7 @@ const App = () => {
         </ErrorBoundary>
       </div>
       <Footer />
+      <AiChatbot />
     </>
   );
 };
