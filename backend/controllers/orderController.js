@@ -9,6 +9,7 @@ import {
   handleStripeWebhook,
   getOrderById,
   reorderPreviousOrder,
+  submitOrderFeedback,
 } from "../services/orderService.js";
 import { logger } from '../utils/logger.js';
 
@@ -27,6 +28,9 @@ const ERROR_MESSAGES = {
   NO_PAYMENT_INTENT: "No Stripe payment intent found — cannot auto-refund",
   ORDER_NOT_FOUND: "Order not found",
   CANNOT_CANCEL: "Only orders in 'Food Processing' state can be cancelled",
+  FEEDBACK_ONLY_AFTER_DELIVERED: "Feedback can be submitted only after the order is delivered",
+  FEEDBACK_ALREADY_SUBMITTED: "Feedback already submitted for this order",
+  FEEDBACK_NOT_SUPPORTED: "Feedback storage is not configured (missing `orders.feedback` column)",
 };
 
 const handleServiceError = (res, error, fallback = "An unexpected error occurred") => {
@@ -135,6 +139,15 @@ const reorderOrder = async (req, res) => {
   }
 };
 
+const submitFeedback = async (req, res) => {
+  try {
+    const result = await submitOrderFeedback(req.userId, req.body.orderId, req.body.rating, req.body.comment);
+    res.json({ success: true, message: "Feedback submitted", data: result });
+  } catch (error) {
+    handleServiceError(res, error, "Feedback submission failed");
+  }
+};
+
 const stripeWebhook = async (req, res) => {
   // Guard: skip processing entirely when the webhook secret is a placeholder.
   if (!webhookConfigured) {
@@ -164,6 +177,7 @@ export {
   refundOrder,
   cancelOrder,
   reorderOrder,
+  submitFeedback,
   stripeWebhook,
   getOrderDetails,
 };

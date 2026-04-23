@@ -9,13 +9,15 @@ import {
     refundOrder,
     cancelOrder,
     getOrderDetails,
-    reorderOrder
+    reorderOrder,
+    submitFeedback
 } from "../controllers/orderController.js";
 import { paymentLimiter } from "../middleware/rateLimiter.js";
 import {
     validatePlaceOrder,
     validateVerifyOrder,
     validateUpdateStatus,
+    validateOrderFeedback,
 } from "../middleware/validate.js";
 
 const orderRouter = express.Router();
@@ -26,6 +28,7 @@ orderRouter.post("/status", authMiddleware, requireRole('admin'), validateUpdate
 orderRouter.post("/refund", authMiddleware, requireRole('admin'), refundOrder);
 orderRouter.post("/cancel", authMiddleware, cancelOrder);
 orderRouter.post("/reorder", authMiddleware, reorderOrder);
+orderRouter.post("/feedback", authMiddleware, validateOrderFeedback, submitFeedback);
 orderRouter.get("/userorders", authMiddleware, userOrders);
 orderRouter.get("/list", authMiddleware, requireRole('admin'), listOrders);
 orderRouter.get("/:orderId", authMiddleware, getOrderDetails);

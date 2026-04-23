@@ -565,6 +565,51 @@ export const cancelUserOrder = async (userId, orderId, io) => {
 };
 
 /**
+ * Customer feedback on a delivered order.
+ *
+ * NOTE: This implementation stores feedback into a single `feedback` JSON column
+ * on the `orders` table. If your InsForge `orders` table doesn't have this column,
+ * you'll get a clear error message from the API.
+ */
+export const submitOrderFeedback = async (userId, orderId, rating, comment) => {
+  const { data: order, error: fetchError } = await insforge.database
+    .from("orders")
+    .select("id, user_id, status, feedback")
+    .eq("id", orderId)
+    .maybeSingle();
+
+  if (fetchError) throw new Error(fetchError.message);
+  if (!order) throw new Error("ORDER_NOT_FOUND");
+  if (order.user_id !== userId) throw new Error("UNAUTHORIZED");
+  if (order.status !== "Delivered") throw new Error("FEEDBACK_ONLY_AFTER_DELIVERED");
+  if (order.feedback?.rating) throw new Error("FEEDBACK_ALREADY_SUBMITTED");
+
+  const feedback = {
+    rating: Number(rating),
+    comment: comment || "",
+    created_at: new Date().toISOString(),
+  };
+
+  const { data: updated, error: updateError } = await insforge.database
+    .from("orders")
+    .update({ feedback })
+    .eq("id", orderId)
+    .eq("user_id", userId)
+    .select()
+    .single();
+
+  if (updateError) {
+    const msg = String(updateError.message || "");
+    if (msg.toLowerCase().includes("feedback") && msg.toLowerCase().includes("column")) {
+      throw new Error("FEEDBACK_NOT_SUPPORTED");
+    }
+    throw new Error(updateError.message);
+  }
+
+  return remapOrder(updated);
+};
+
+/**
  * Handle incoming Stripe webhooks securely.
  */
 export const handleStripeWebhook = async (rawBody, signature, io) => {

@@ -10,6 +10,7 @@ import orderRouter from "./routes/orderRoute.js";
 import couponRouter from "./routes/couponRoute.js";
 import riderRouter from "./routes/riderRoute.js";
 import notificationRouter from "./routes/notificationRoute.js";
+import aiRouter from "./routes/aiRoute.js";
 import { generalLimiter } from "./middleware/rateLimiter.js";
 import { initSocket } from "./utils/socket.js";
 import { stripeWebhook } from "./controllers/orderController.js";
@@ -45,6 +46,7 @@ app.use("/api/order", orderRouter);
 app.use("/api/coupon", couponRouter);
 app.use("/api/rider", riderRouter);  // auth + requireRole('rider') applied inside riderRoute.js
 app.use("/api/notifications", notificationRouter);
+app.use("/api/ai", aiRouter);
 
 import swaggerUi from "swagger-ui-express";
 import swaggerDocument from "./config/swagger.js";
