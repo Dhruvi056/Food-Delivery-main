@@ -1,6 +1,7 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { StoreContext } from '../../context/StoreContext.jsx';
 import api from '../../config/axios.js';
+import axios from 'axios';
 import './Profile.css';
 
 // ── Rider Profile ──────────────────────────────────────────────────────────────
@@ -112,6 +113,69 @@ const RiderProfile = ({ userName, userEmail }) => {
   );
 };
 
+// ── AI Recommendations (Feature 5) ─────────────────────────────────────────────────────────
+const AiRecommendations = () => {
+  const { url } = useContext(StoreContext);
+  const userId = localStorage.getItem('userId');
+  const token  = localStorage.getItem('token');
+  const [recs, setRecs] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!userId || !token) { setLoading(false); return; }
+    axios
+      .get(`${url}/api/ai/recommend/${userId}`, { headers: { token } })
+      .then((res) => {
+        if (res.data.success && Array.isArray(res.data.data)) {
+          setRecs(res.data.data.filter((r) => r.name));
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [userId, token, url]);
+
+  if (!userId) return null;
+
+  return (
+    <section className="profile-section glass full-width">
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+        <h2 className="section-title" style={{ margin: 0 }}>Recommended for You</h2>
+        <span style={{
+          fontSize: '0.65rem', padding: '2px 8px', borderRadius: '20px',
+          background: 'rgba(233,69,96,0.15)', color: '#e94560', fontWeight: 700,
+        }}>✨ AI</span>
+      </div>
+
+      {loading ? (
+        <div style={{ display: 'flex', gap: '12px' }}>
+          {[1, 2, 3].map((i) => (
+            <div key={i} style={{
+              flex: '0 0 160px', padding: '16px', borderRadius: '12px',
+              background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)',
+              animation: 'pulse 1.5s infinite',
+            }}>
+              <div style={{ height: '12px', borderRadius: '6px', background: 'rgba(255,255,255,0.1)', marginBottom: '8px', width: '80%' }} />
+              <div style={{ height: '10px', borderRadius: '6px', background: 'rgba(255,255,255,0.07)', width: '60%' }} />
+            </div>
+          ))}
+        </div>
+      ) : recs.length === 0 ? (
+        <p className="empty-msg">Order a few dishes first to get AI-powered recommendations!</p>
+      ) : (
+        <div className="ai-recs-strip">
+          {recs.map((rec, i) => (
+            <div key={rec.foodId || i} className="ai-rec-card">
+              <p className="ai-rec-name">{rec.name}</p>
+              {rec.price && <p className="ai-rec-price">₹{rec.price}</p>}
+              <p className="ai-rec-reason">{rec.reason}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+};
+
 // ── Customer Profile ───────────────────────────────────────────────────────────
 
 const CustomerProfile = ({ userName, userEmail, notifications }) => {
@@ -179,6 +243,9 @@ const CustomerProfile = ({ userName, userEmail, notifications }) => {
             </p>
           )}
         </section>
+
+        {/* AI Recommendations */}
+        <AiRecommendations />
 
         {/* Recent Orders Table */}
         <section className="profile-section glass full-width">

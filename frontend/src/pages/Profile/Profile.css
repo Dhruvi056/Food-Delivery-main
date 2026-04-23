@@ -273,3 +273,44 @@
   color: var(--text, #f0ede6);
 }
 
+/* ── AI Recommendations ── */
+.ai-recs-strip {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.ai-rec-card {
+  flex: 0 0 180px;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.04);
+  transition: border-color 0.2s, transform 0.2s;
+}
+
+.ai-rec-card:hover {
+  border-color: rgba(233,69,96,0.35);
+  transform: translateY(-3px);
+}
+
+.ai-rec-name {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--text, #f0ede6);
+  margin-bottom: 4px;
+}
+
+.ai-rec-price {
+  font-weight: 800;
+  font-size: 0.95rem;
+  color: var(--accent, #e94560);
+  margin-bottom: 8px;
+}
+
+.ai-rec-reason {
+  font-size: 0.75rem;
+  color: var(--muted, #8b8fa5);
+  line-height: 1.5;
+}

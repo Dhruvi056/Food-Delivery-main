@@ -193,10 +193,26 @@ const Orders = ({ url }) => {
   const [refundModalOrderId, setRefundModalOrderId] = useState(null);
   const [isRefunding, setIsRefunding] = useState(false);
 
+  const [sentimentData, setSentimentData] = useState(null);
+  const [sentimentLoading, setSentimentLoading] = useState(false);
+
   const fetchAllOrder = async () => {
     const res = await axios.get(`${url}/api/order/list`, { headers: { token } });
     if (res.data.success) setOrders(res.data.data);
     setLoading(false);
+  };
+
+  const fetchSentiment = async () => {
+    setSentimentLoading(true);
+    try {
+      const res = await axios.get(`${url}/api/ai/sentiment-report`, { headers: { token } });
+      if (res.data.success) setSentimentData(res.data.data);
+      else toast.error(res.data.message || "Could not load AI insights");
+    } catch {
+      toast.error("AI insights request failed");
+    } finally {
+      setSentimentLoading(false);
+    }
   };
 
   const statusHandler = async (e, orderId) => {
@@ -296,6 +312,91 @@ const Orders = ({ url }) => {
           <button onClick={fetchAllOrder} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-brand-muted border border-brand-border hover:border-brand-accent hover:text-brand-accent transition-all duration-200">
             <FiRefreshCw className="w-4 h-4" /> Refresh
           </button>
+        </div>
+
+        {/* ── AI Sentiment Insights card ── */}
+        <div className="rounded-2xl border border-brand-border bg-brand-card p-5 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">✨</span>
+              <h2 className="text-base font-bold text-white">AI Customer Insights</h2>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-brand-accent/20 text-brand-accent font-semibold">Gemini</span>
+            </div>
+            <button
+              onClick={fetchSentiment}
+              disabled={sentimentLoading}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border border-brand-border text-brand-muted hover:border-brand-accent hover:text-brand-accent transition-all disabled:opacity-50"
+            >
+              <FiRefreshCw className={`w-3.5 h-3.5 ${sentimentLoading ? "animate-spin" : ""}`} />
+              {sentimentLoading ? "Analysing…" : sentimentData ? "Refresh" : "Generate Report"}
+            </button>
+          </div>
+
+          {!sentimentData && !sentimentLoading && (
+            <p className="text-sm text-brand-muted text-center py-4">
+              Click "Generate Report" to analyse customer feedback with AI.
+            </p>
+          )}
+
+          {sentimentLoading && (
+            <div className="flex items-center gap-2 text-sm text-brand-muted py-4">
+              <span className="animate-pulse">✨</span>
+              <span>Gemini is analysing customer feedback…</span>
+            </div>
+          )}
+
+          {sentimentData && !sentimentLoading && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Overall */}
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">
+                  {sentimentData.overall === "Positive" ? "😊" : sentimentData.overall === "Negative" ? "😟" : "😐"}
+                </span>
+                <div>
+                  <p className="text-[10px] text-brand-muted uppercase tracking-wider">Overall Sentiment</p>
+                  <p className={`font-bold text-lg ${
+                    sentimentData.overall === "Positive" ? "text-emerald-400" :
+                    sentimentData.overall === "Negative" ? "text-red-400" : "text-yellow-400"
+                  }`}>{sentimentData.overall}</p>
+                </div>
+              </div>
+
+              {/* Summary */}
+              {sentimentData.summary && (
+                <p className="text-sm text-slate-300 leading-relaxed col-span-full border-t border-brand-border pt-3">
+                  {sentimentData.summary}
+                </p>
+              )}
+
+              {/* Praise */}
+              {sentimentData.praisePoints?.length > 0 && (
+                <div>
+                  <p className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wider mb-2">👍 What customers love</p>
+                  <ul className="space-y-1">
+                    {sentimentData.praisePoints.map((p, i) => (
+                      <li key={i} className="text-sm text-slate-300 flex items-start gap-1.5">
+                        <span className="text-emerald-400 mt-0.5">•</span>{p}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Complaints */}
+              {sentimentData.complaints?.length > 0 && (
+                <div>
+                  <p className="text-[10px] text-red-400 font-semibold uppercase tracking-wider mb-2">👎 Areas to improve</p>
+                  <ul className="space-y-1">
+                    {sentimentData.complaints.map((c, i) => (
+                      <li key={i} className="text-sm text-slate-300 flex items-start gap-1.5">
+                        <span className="text-red-400 mt-0.5">•</span>{c}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Stats row */}

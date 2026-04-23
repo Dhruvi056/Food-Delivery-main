@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from "react";
+import React, { useContext, useEffect, useState, useCallback } from "react";
 import "./MyOrders.css"; // kept as fallback — not deleted
 import { StoreContext } from "../../context/StoreContext";
 import { useTheme } from "../../context/ThemeContext";
@@ -9,7 +9,7 @@ import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
 import {
   FiPackage, FiTruck, FiCheckCircle, FiClock, FiRefreshCw,
-  FiXCircle, FiShoppingCart, FiAlertTriangle, FiSun, FiMoon,
+  FiXCircle, FiShoppingCart, FiAlertTriangle,
 } from "react-icons/fi";
 
 // ── Status Pipeline Config ─────────────────────────────────────────────────────
@@ -150,8 +150,60 @@ const StepNodes = ({ order }) => {
   );
 };
 
+// ── AI Order Summary ──────────────────────────────────────────────────────────
+const AiSummary = ({ orderId, url, token, dark }) => {
+  const [summary, setSummary] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [fetched, setFetched] = useState(false);
+
+  const fetchSummary = async () => {
+    if (fetched || loading) return;
+    setLoading(true);
+    setFetched(true);
+    try {
+      const res = await axios.get(`${url}/api/ai/order-summary/${orderId}`, {
+        headers: { token },
+      });
+      if (res.data.success) setSummary(res.data.data?.summary || "");
+    } catch { /* silent */ }
+    finally { setLoading(false); }
+  };
+
+  if (!summary && !loading && !fetched) {
+    return (
+      <button
+        onClick={fetchSummary}
+        className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-all ${
+          dark
+            ? "border-white/10 text-slate-400 hover:text-brand-accent hover:border-brand-accent/30 bg-white/3"
+            : "border-slate-200 text-slate-400 hover:text-brand-accent hover:border-brand-accent/30 bg-white"
+        }`}
+      >
+        ✨ AI Summary
+      </button>
+    );
+  }
+
+  if (loading) {
+    return <p className="text-xs text-brand-muted animate-pulse">✨ Generating summary…</p>;
+  }
+
+  if (!summary) return null;
+
+  return (
+    <div className={`rounded-xl px-4 py-3 border text-sm leading-relaxed ${
+      dark
+        ? "bg-brand-accent/5 border-brand-accent/20 text-slate-300"
+        : "bg-brand-accent/5 border-brand-accent/20 text-slate-700"
+    }`}>
+      <span className="text-brand-accent font-semibold text-xs uppercase tracking-wider block mb-1">✨ AI Summary</span>
+      {summary}
+    </div>
+  );
+};
+
 // ── Order Card ─────────────────────────────────────────────────────────────────
-const OrderCard = ({ order, url, onCancel, onReorder, onGiveFeedback, dark }) => {
+const OrderCard = ({ order, url, token, onCancel, onReorder, onGiveFeedback, dark }) => {
   const meta = STATUS_META[order.status] || STATUS_META["Food Processing"];
   const isActive = order.status === "Food Processing" || order.status === "Out for delivery";
   const formattedDate = new Date(order.date).toLocaleDateString("en-IN", {
@@ -193,6 +245,9 @@ const OrderCard = ({ order, url, onCancel, onReorder, onGiveFeedback, dark }) =>
           {order.status}
         </div>
       </div>
+
+      {/* ── AI Summary ── */}
+      <AiSummary orderId={order._id} url={url} token={token} dark={dark} />
 
       {/* ── Items Summary ── */}
       <div className={`rounded-xl px-4 py-3 ${dark ? "bg-white/5" : "bg-slate-50"}`}>
@@ -306,6 +361,8 @@ const MyOrders = () => {
   const { theme } = useTheme();
   const dark = theme === "dark";
   const navigate = useNavigate();
+  // Token stored separately so OrderCard subcomponent can use it
+  const storedToken = token || localStorage.getItem("token") || "";
 
   const [data, setData] = useState([]);
   const [page, setPage] = useState(1);
@@ -548,6 +605,7 @@ const MyOrders = () => {
                 key={order._id || i}
                 order={order}
                 url={url}
+                token={storedToken}
                 onCancel={handleCancel}
                 onReorder={handleReorder}
                 onGiveFeedback={openFeedback}
