@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import Navbar from "./components/Navbar/Navbar";
-import { Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 import Home from "./pages/Home/Home";
 import Cart from "./pages/Cart/Cart";
 import PlaceOrder from "./pages/PlaceOrder/PlaceOrder";
@@ -17,6 +17,7 @@ import RiderDashboard from "./pages/RiderDashboard/RiderDashboard";
 import Track from "./pages/Track/Track";
 import Profile from "./pages/Profile/Profile";
 import PrivacyPolicy from "./pages/PrivacyPolicy/PrivacyPolicy";
+import ProtectedRiderRoute from "./components/ProtectedRiderRoute/ProtectedRiderRoute";
 
 const App = () => {
   const [showLogin, setShowLogin] = useState(false);
@@ -81,7 +82,17 @@ const App = () => {
             <Route path="/myorders" element={<MyOrders />} />
             <Route path="/calorie" element={<Calorie />} />
             <Route path="/reset-password/:token" element={<ResetPassword />} />
-            <Route path="/rider" element={<RiderDashboard />} />
+            {/* Protected rider route */}
+            <Route
+              path="/rider-dashboard"
+              element={
+                <ProtectedRiderRoute setShowLogin={setShowLogin}>
+                  <RiderDashboard />
+                </ProtectedRiderRoute>
+              }
+            />
+            {/* Legacy alias — redirect old /rider links to /rider-dashboard */}
+            <Route path="/rider" element={<Navigate to="/rider-dashboard" replace />} />
             <Route path="/track/:orderId" element={<Track />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />

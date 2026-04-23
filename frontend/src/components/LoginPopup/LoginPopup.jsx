@@ -4,9 +4,11 @@ import { assets } from "../../assets/frontend_assets/assets";
 import { StoreContext } from "../../context/StoreContext";
 import axios from "axios";
 import { toast } from "react-toastify";
+import { useNavigate } from "react-router-dom";
 
 const LoginPopup = ({ setShowLogin }) => {
   const { url, setToken, setUserName, setUserEmail } = useContext(StoreContext);
+  const navigate = useNavigate();
   const [currentState, setCurrentState] = useState("Login");
   const [show2FA, setShow2FA] = useState(false);
   const [otpCode, setOtpCode] = useState("");
@@ -41,11 +43,21 @@ const LoginPopup = ({ setShowLogin }) => {
           localStorage.setItem("userName", response.data.name || "");
           localStorage.setItem("userEmail", data.email || "");
           localStorage.setItem("userId", response.data.userId || "");
+          localStorage.setItem("role", response.data.role || "user");
           if (response.data.refreshToken) {
             localStorage.setItem("refreshToken", response.data.refreshToken);
           }
           toast.success("🎉 Login Successful!");
           setShowLogin(false);
+          // Role-based redirect
+          const role = response.data.role;
+          if (role === "rider") {
+            navigate("/rider-dashboard");
+          } else if (role === "admin") {
+            toast.info("Admin panel is available at http://localhost:5174");
+          } else {
+            navigate("/");
+          }
         } else {
           toast.error(response.data.message);
         }
@@ -90,7 +102,7 @@ const LoginPopup = ({ setShowLogin }) => {
           return;
         }
 
-        // Direct token (registration flow)
+        // Direct token (login skip-2FA or registration flow)
         setToken(response.data.token);
         setUserName(response.data.name || "");
         setUserEmail(response.data.email || data.email || "");
@@ -98,11 +110,22 @@ const LoginPopup = ({ setShowLogin }) => {
         localStorage.setItem("userName", response.data.name || "");
         localStorage.setItem("userEmail", response.data.email || data.email || "");
         localStorage.setItem("userId", response.data.userId || "");
+        localStorage.setItem("role", response.data.role || "user");
         if (response.data.refreshToken) {
           localStorage.setItem("refreshToken", response.data.refreshToken);
         }
-        toast.success("🎉 Account Created Successfully!");
+        const successMsg = currentState === "Login" ? "🎉 Login Successful!" : "🎉 Account Created Successfully!";
+        toast.success(successMsg);
         setShowLogin(false);
+        // Role-based redirect
+        const role = response.data.role;
+        if (role === "rider") {
+          navigate("/rider-dashboard");
+        } else if (role === "admin") {
+          toast.info("Admin panel is available at http://localhost:5174");
+        } else {
+          navigate("/");
+        }
       } else {
         toast.error(response.data.message);
       }
