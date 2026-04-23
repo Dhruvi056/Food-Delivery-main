@@ -23,8 +23,16 @@ const Calorie = () => {
     cartItems, 
     food_list, 
     calorieHistory, 
-    getCurrentMonthCalories 
+    getCurrentMonthCalories: _getCurrentMonthCalories,
   } = useContext(StoreContext);
+
+  // getCurrentMonthCalories is not implemented in StoreContext yet — safe fallback
+  const getCurrentMonthCalories = _getCurrentMonthCalories || (() => ({
+    dailyData: {},
+    totalCalories: 0,
+    daysTracked: 0,
+  }));
+
   
   const [calorieDetails, setCalorieDetails] = useState([]);
   const [totalCalories, setTotalCalories] = useState(0);

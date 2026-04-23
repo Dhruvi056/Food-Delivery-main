@@ -394,6 +394,21 @@ export const getAllOrders = async (userId) => {
 export const changeOrderStatus = async (userId, orderId, status, io) => {
   await assertAdmin(userId);
 
+  // Step 1: Read the current order to enforce forward-only flow
+  const { data: currentOrder } = await insforge.database
+    .from("orders")
+    .select("status, rider_id, user_id")
+    .eq("id", orderId)
+    .maybeSingle();
+
+  if (!currentOrder) throw new Error("ORDER_NOT_FOUND");
+
+  // Guard: lock completed orders
+  const LOCKED_STATUSES = ["Delivered", "Cancelled", "Refunded"];
+  if (LOCKED_STATUSES.includes(currentOrder.status)) {
+    throw new Error(`ORDER_LOCKED: Cannot update a ${currentOrder.status} order`);
+  }
+
   const { data: order, error } = await insforge.database
     .from("orders")
     .update({ status })
@@ -410,13 +425,22 @@ export const changeOrderStatus = async (userId, orderId, status, io) => {
       .eq("id", order.user_id)
       .maybeSingle();
 
+    // Emit to customer
     emitSocketEvent(io, `user_${order.user_id}`, "order_update", {
       orderId: order.id,
       status,
       updatedAt: new Date(),
     });
 
-    // Insert notification for customer (so dropdown shows Delivered/Processing updates)
+    // Emit order_status_update to all parties for real-time sync
+    const statusPayload = { orderId: order.id, status };
+    emitSocketEvent(io, "admin_room", "order_status_update", statusPayload);
+    emitSocketEvent(io, `user_${order.user_id}`, "order_status_update", statusPayload);
+    if (order.rider_id) {
+      emitSocketEvent(io, `rider_${order.rider_id}`, "order_status_update", statusPayload);
+    }
+
+    // Insert notification for customer
     await insforge.database.from("notifications").insert({
       user_id: order.user_id,
       type: "order_update",
@@ -447,6 +471,7 @@ export const changeOrderStatus = async (userId, orderId, status, io) => {
 
   return remapOrder(order);
 };
+
 
 /**
  * Process an admin-initiated refund via Stripe.

@@ -9,6 +9,7 @@ import { FaChartBar } from "react-icons/fa";
 import {
   FiSun, FiMoon, FiLogOut, FiShoppingBag, FiBarChart2,
   FiSearch, FiX, FiUser, FiShoppingCart, FiTruck, FiBell,
+  FiDollarSign, FiClock, FiPackage,
 } from "react-icons/fi";
 import { useRef, useEffect } from "react";
 
@@ -78,16 +79,15 @@ const Navbar = ({ setShowLogin }) => {
     navigateHomeAndScroll("explore-menu");
   };
 
-  // Decode role from token (Viva ready: Stateless authorization check)
-  let userRole = "user";
+  // Role detection: localStorage is the primary source (set explicitly on login).
+  // JWT decode is the fallback for cases where localStorage was cleared mid-session.
+  const storedRole = (localStorage.getItem("role") || "").toLowerCase();
+  let jwtRole = "user";
   if (token) {
     const payload = decodeJwtPayload(token);
-    userRole = (payload?.role || "user").toLowerCase();
+    jwtRole = (payload?.role || "user").toLowerCase();
   }
-  const isRiderUser =
-    userRole === "rider" ||
-    (userEmail || "").toLowerCase().includes("rider@") ||
-    (userName || "").toLowerCase().includes("rider");
+  const isRiderUser = storedRole === "rider" || jwtRole === "rider";
 
   // Handle outside clicks to close the dropdown
   useEffect(() => {
@@ -110,8 +110,11 @@ const Navbar = ({ setShowLogin }) => {
 
   const logout = () => {
     localStorage.removeItem("token");
+    localStorage.removeItem("refreshToken");
     localStorage.removeItem("userName");
     localStorage.removeItem("userEmail");
+    localStorage.removeItem("userId");
+    localStorage.removeItem("role");
     setToken("");
     setUserName("");
     setUserEmail("");
@@ -140,79 +143,111 @@ const Navbar = ({ setShowLogin }) => {
 
         {/* ── Nav Links ── */}
         <ul className="hidden sm:flex items-center gap-6 text-sm font-medium">
-          {[
-            { label: "Home", to: "/", key: "home" },
-            { label: "Menu", href: "/#explore-menu", key: "menu" },
-            { label: "Contact", href: "#footer", key: "contact-us" },
-          ].map(({ label, to, href, key }) => {
-            const isActive = menu === key;
-            const cls = [
-              "relative pb-0.5 transition-colors duration-200 capitalize",
-              isActive
-                ? "text-brand-accent"
-                : dark
-                  ? "text-slate-300 hover:text-brand-accent"
-                  : "text-slate-600 hover:text-brand-accent",
-            ].join(" ");
+          {isRiderUser ? (
+            // ── Rider-specific nav links ──
+            [
+              { label: "Deliveries", to: "/deliveries",     key: "deliveries" },
+              { label: "Earnings",   to: "/earnings",       key: "earnings" },
+              { label: "History",    to: "/deliveries",     key: "history" },
+            ].map(({ label, to, key }) => {
+              const isActive = menu === key;
+              const cls = [
+                "relative pb-0.5 transition-colors duration-200 capitalize",
+                isActive
+                  ? "text-brand-accent"
+                  : dark
+                    ? "text-slate-300 hover:text-brand-accent"
+                    : "text-slate-600 hover:text-brand-accent",
+              ].join(" ");
+              return (
+                <li key={key}>
+                  <Link to={to} onClick={() => setMenu(key)} className={cls}>
+                    {label}
+                    {isActive && (
+                      <span className="absolute -bottom-0.5 left-0 w-full h-0.5 rounded-full bg-brand-accent" />
+                    )}
+                  </Link>
+                </li>
+              );
+            })
+          ) : (
+            // ── Customer nav links ──
+            [
+              { label: "Home",    to: "/",             key: "home" },
+              { label: "Menu",    href: "/#explore-menu", key: "menu" },
+              { label: "Contact", href: "#footer",      key: "contact-us" },
+            ].map(({ label, to, href, key }) => {
+              const isActive = menu === key;
+              const cls = [
+                "relative pb-0.5 transition-colors duration-200 capitalize",
+                isActive
+                  ? "text-brand-accent"
+                  : dark
+                    ? "text-slate-300 hover:text-brand-accent"
+                    : "text-slate-600 hover:text-brand-accent",
+              ].join(" ");
 
-            return to ? (
-              <li key={key}>
-                <Link to={to} onClick={key === "home" ? handleHomeClick : () => setMenu(key)} className={cls}>
-                  {label}
-                  {isActive && (
-                    <span className="absolute -bottom-0.5 left-0 w-full h-0.5 rounded-full bg-brand-accent" />
-                  )}
-                </Link>
-              </li>
-            ) : (
-              <li key={key}>
-                <a
-                  href={href}
-                  onClick={key === "menu" ? handleMenuClick : () => {
-                    setMenu(key);
-                    if (key === "contact-us") toast.info("📍 Contact info is at the bottom!", { toastId: "contact-info" });
-                  }}
-                  className={cls}
-                >
-                  {label}
-                  {isActive && (
-                    <span className="absolute -bottom-0.5 left-0 w-full h-0.5 rounded-full bg-brand-accent" />
-                  )}
-                </a>
-              </li>
-            );
-          })}
+              return to ? (
+                <li key={key}>
+                  <Link to={to} onClick={key === "home" ? handleHomeClick : () => setMenu(key)} className={cls}>
+                    {label}
+                    {isActive && (
+                      <span className="absolute -bottom-0.5 left-0 w-full h-0.5 rounded-full bg-brand-accent" />
+                    )}
+                  </Link>
+                </li>
+              ) : (
+                <li key={key}>
+                  <a
+                    href={href}
+                    onClick={key === "menu" ? handleMenuClick : () => {
+                      setMenu(key);
+                      if (key === "contact-us") toast.info("📍 Contact info is at the bottom!", { toastId: "contact-info" });
+                    }}
+                    className={cls}
+                  >
+                    {label}
+                    {isActive && (
+                      <span className="absolute -bottom-0.5 left-0 w-full h-0.5 rounded-full bg-brand-accent" />
+                    )}
+                  </a>
+                </li>
+              );
+            })
+          )}
         </ul>
 
         {/* ── Right Controls ── */}
         <div className="flex items-center gap-3">
 
-          {/* Search */}
-          <div className={[
-            "flex items-center gap-2 rounded-full transition-all duration-300 overflow-hidden",
-            showSearch
-              ? dark
-                ? "bg-brand-card border border-brand-border px-3 py-1.5"
-                : "bg-slate-100 border border-brand-lightBorder px-3 py-1.5"
-              : "px-0",
-          ].join(" ")}>
-            <button
-              onClick={() => { setShowSearch(s => !s); if (showSearch) setSearchTerm(""); }}
-              className={`shrink-0 w-8 h-8 flex items-center justify-center rounded-full transition-all duration-200 ${dark ? "text-slate-300 hover:text-brand-accent hover:bg-brand-card" : "text-slate-500 hover:text-brand-accent hover:bg-slate-100"}`}
-            >
-              {showSearch ? <FiX className="w-4 h-4" /> : <FiSearch className="w-4 h-4" />}
-            </button>
-            {showSearch && (
-              <input
-                type="text"
-                placeholder="Search food…"
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-                autoFocus
-                className={`w-36 sm:w-44 text-sm bg-transparent outline-none ${dark ? "text-white placeholder-slate-500" : "text-slate-800 placeholder-slate-400"}`}
-              />
-            )}
-          </div>
+          {/* Search — hidden for riders (irrelevant on delivery dashboard) */}
+          {!isRiderUser && (
+            <div className={[
+              "flex items-center gap-2 rounded-full transition-all duration-300 overflow-hidden",
+              showSearch
+                ? dark
+                  ? "bg-brand-card border border-brand-border px-3 py-1.5"
+                  : "bg-slate-100 border border-brand-lightBorder px-3 py-1.5"
+                : "px-0",
+            ].join(" ")}>
+              <button
+                onClick={() => { setShowSearch(s => !s); if (showSearch) setSearchTerm(""); }}
+                className={`shrink-0 w-8 h-8 flex items-center justify-center rounded-full transition-all duration-200 ${dark ? "text-slate-300 hover:text-brand-accent hover:bg-brand-card" : "text-slate-500 hover:text-brand-accent hover:bg-slate-100"}`}
+              >
+                {showSearch ? <FiX className="w-4 h-4" /> : <FiSearch className="w-4 h-4" />}
+              </button>
+              {showSearch && (
+                <input
+                  type="text"
+                  placeholder="Search food…"
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                  autoFocus
+                  className={`w-36 sm:w-44 text-sm bg-transparent outline-none ${dark ? "text-white placeholder-slate-500" : "text-slate-800 placeholder-slate-400"}`}
+                />
+              )}
+            </div>
+          )}
 
           {/* Dark / Light Toggle */}
           <button
@@ -228,17 +263,19 @@ const Navbar = ({ setShowLogin }) => {
             {dark ? <FiSun className="w-4 h-4" /> : <FiMoon className="w-4 h-4" />}
           </button>
 
-          {/* Cart */}
-          <Link to="/cart" className="relative">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors duration-200 ${dark ? "text-slate-300 hover:text-brand-accent hover:bg-brand-card" : "text-slate-600 hover:text-brand-accent hover:bg-slate-100"}`}>
-              <FiShoppingCart className="w-4 h-4" />
-            </div>
-            {cartCount > 0 && (
-              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-brand-accent rounded-full flex items-center justify-center text-[9px] text-white font-bold px-1 animate-pulse-ring">
-                {cartCount}
-              </span>
-            )}
-          </Link>
+          {/* Cart — hidden for riders */}
+          {!isRiderUser && (
+            <Link to="/cart" className="relative">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors duration-200 ${dark ? "text-slate-300 hover:text-brand-accent hover:bg-brand-card" : "text-slate-600 hover:text-brand-accent hover:bg-slate-100"}`}>
+                <FiShoppingCart className="w-4 h-4" />
+              </div>
+              {cartCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-brand-accent rounded-full flex items-center justify-center text-[9px] text-white font-bold px-1 animate-pulse-ring">
+                  {cartCount}
+                </span>
+              )}
+            </Link>
+          )}
 
           {/* Notifications */}
           {token && (
@@ -326,12 +363,18 @@ const Navbar = ({ setShowLogin }) => {
                   </div>
                 )}
 
-                {[
-                  { icon: FiShoppingBag, label: "My Orders", action: () => navigate("/myorders") },
-                  { icon: FiBarChart2,   label: "Calorie Tracker", action: () => navigate("/calorie") },
-                  // Dynamic Rider Dashboard Link
-                  ...(isRiderUser ? [{ icon: FiTruck, label: "Rider Dashboard", action: () => navigate("/rider-dashboard") }] : []),
-                ].map(({ icon: Icon, label, action }) => (
+                {(isRiderUser ? [
+                  // ── Rider-only dropdown items ──
+                  { icon: FiTruck,       label: "Rider Dashboard",  action: () => navigate("/rider-dashboard") },
+                  { icon: FiDollarSign,  label: "My Earnings",      action: () => navigate("/earnings") },
+                  { icon: FiClock,       label: "Delivery History", action: () => navigate("/deliveries") },
+                  { icon: FiUser,        label: "My Profile",       action: () => navigate("/profile") },
+                ] : [
+                  // ── Customer-only dropdown items ──
+                  { icon: FiShoppingBag, label: "My Orders",        action: () => navigate("/myorders") },
+                  { icon: FiBarChart2,   label: "Calorie Tracker",  action: () => navigate("/calorie") },
+                  { icon: FiUser,        label: "My Profile",       action: () => navigate("/profile") },
+                ]).map(({ icon: Icon, label, action }) => (
                   <button
                     key={label}
                     onClick={() => { action(); setShowProfile(false); }}

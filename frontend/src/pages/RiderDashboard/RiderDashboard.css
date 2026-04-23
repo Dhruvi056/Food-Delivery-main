@@ -237,3 +237,27 @@ input:checked + .slider:before {
   color: var(--accent);
   font-size: 1.5rem;
 }
+
+/* Locked pool state when rider is busy */
+.pool-locked-hint {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--muted);
+  letter-spacing: 0;
+  border: none;
+  padding-left: 0;
+}
+
+.pool-card--locked {
+  opacity: 0.55;
+  pointer-events: none;
+  filter: grayscale(0.4);
+}
+
+.btn-claim--disabled {
+  background: var(--surface2);
+  border-color: var(--border);
+  color: var(--muted);
+  cursor: not-allowed;
+  opacity: 0.6;
+}

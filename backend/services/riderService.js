@@ -16,22 +16,38 @@ const STATUS_FLOW = {
 
 /**
  * Fetch all orders available for riders to claim.
+ * Includes both "Food Processing" (paid, awaiting kitchen) and
+ * "Ready for Pickup" (kitchen done) orders that have no rider assigned yet.
  */
 export const getAvailableOrders = async () => {
-  return await dbQuery("orders", (q) =>
+  const data = await dbQuery("orders", (q) =>
     q
       .select("*")
-      .eq("status", "Ready for Pickup")
+      .in("status", ["Food Processing", "Ready for Pickup"])
       .is("rider_id", null)
       .eq("payment", true)
       .order("created_at", { ascending: true })
   );
+  console.log(`[RiderService] Available orders found: ${Array.isArray(data) ? data.length : 0}`);
+  return data;
 };
+
 
 /**
  * Claim an available order.
+ * Guards against a rider claiming multiple orders simultaneously.
  */
 export const claimOrder = async (orderId, riderId) => {
+  // Guard: check if this rider already has an active order
+  const existingActive = await dbQuery("orders", (q) =>
+    q
+      .select("id")
+      .eq("rider_id", riderId)
+      .in("status", ["Food Processing", "Ready for Pickup", "Out for Delivery"])
+      .maybeSingle()
+  );
+  if (existingActive) throw new Error("RIDER_ALREADY_BUSY");
+
   // Step 1: Read order by id
   const order = await dbQuery("orders", (q) =>
     q.select("*").eq("id", orderId).maybeSingle()
@@ -39,16 +55,14 @@ export const claimOrder = async (orderId, riderId) => {
 
   if (!order) throw new Error("Order not found");
   if (order.rider_id) throw new Error("Order already claimed");
-  if (order.status !== "Ready for Pickup") throw new Error("Order not available");
+  if (!["Food Processing", "Ready for Pickup"].includes(order.status)) throw new Error("Order not available");
 
-  // Step 2: Update orders
+  // Step 2: Update orders (atomic: only if rider_id is still null)
   const updatedOrder = await dbQuery("orders", (q) =>
     q
-      .update({
-        rider_id: riderId,
-      })
+      .update({ rider_id: riderId })
       .eq("id", orderId)
-      .is("rider_id", null) // Atomic check
+      .is("rider_id", null)
       .select()
       .single()
   );
@@ -60,16 +74,12 @@ export const claimOrder = async (orderId, riderId) => {
     q.update({ rider_status: "on_delivery" }).eq("id", riderId)
   );
 
-  // Step 4: Emit via Socket.io
-  getIO()
-    .to(`user_${order.user_id}`)
-    .emit("order_status_update", {
-      orderId,
-      status: "Ready for Pickup",
-      riderId,
-    });
+  // Step 4: Emit to user + admin
+  const io = getIO();
+  io.to(`user_${order.user_id}`).emit("order_status_update", { orderId, status: order.status, riderId });
+  io.to("admin_room").emit("order_status_update", { orderId, status: order.status, riderId });
 
-  // Step 5: Insert notification
+  // Step 5: Insert notification for customer
   await dbQuery("notifications", (q) =>
     q.insert({
       user_id: order.user_id,
@@ -110,7 +120,7 @@ export const advanceOrder = async (orderId, riderId) => {
       .single()
   );
 
-  // Step 4: If Delivered: free the rider
+  // Step 4: If Delivered, free the rider
   if (transition.next === "Delivered") {
     await dbQuery("users", (q) =>
       q.update({ rider_status: "available" }).eq("id", riderId)
@@ -118,15 +128,14 @@ export const advanceOrder = async (orderId, riderId) => {
     getIO().to("rider_room").emit("order_completed", { orderId });
   }
 
-  // Step 5: Emit to user
-  getIO()
-    .to(`user_${order.user_id}`)
-    .emit("order_status_update", {
-      orderId,
-      status: transition.next,
-    });
+  // Step 5: Emit to user, admin, and rider (full sync)
+  const io = getIO();
+  const statusPayload = { orderId, status: transition.next };
+  io.to(`user_${order.user_id}`).emit("order_status_update", statusPayload);
+  io.to("admin_room").emit("order_status_update", statusPayload);
+  io.to(`rider_${riderId}`).emit("order_status_update", statusPayload);
 
-  // Step 6: Insert notification
+  // Step 6: Insert notification for customer
   await dbQuery("notifications", (q) =>
     q.insert({
       user_id: order.user_id,
@@ -137,6 +146,44 @@ export const advanceOrder = async (orderId, riderId) => {
   );
 
   return updatedOrder;
+};
+
+/**
+ * Get all completed deliveries for a rider.
+ */
+export const getRiderDeliveries = async (riderId) => {
+  return await dbQuery("orders", (q) =>
+    q
+      .select("id, status, amount, delivery_fee, address, items, delivered_at, created_at")
+      .eq("rider_id", riderId)
+      .order("created_at", { ascending: false })
+  );
+};
+
+/**
+ * Get earnings summary for a rider.
+ */
+export const getRiderEarnings = async (riderId) => {
+  const orders = await dbQuery("orders", (q) =>
+    q
+      .select("id, status, amount, delivery_fee, delivered_at, created_at")
+      .eq("rider_id", riderId)
+      .eq("status", "Delivered")
+      .order("delivered_at", { ascending: false })
+  );
+
+  const RIDER_CUT_PER_DELIVERY = 40; // ₹40 flat per delivery (configurable)
+  const deliveries = orders || [];
+
+  const totalEarnings = deliveries.length * RIDER_CUT_PER_DELIVERY;
+  const breakdown = deliveries.map(o => ({
+    orderId: o.id,
+    date: o.delivered_at || o.created_at,
+    earned: RIDER_CUT_PER_DELIVERY,
+    orderAmount: o.amount,
+  }));
+
+  return { totalEarnings, deliveryCount: deliveries.length, breakdown, perDelivery: RIDER_CUT_PER_DELIVERY };
 };
 
 /**

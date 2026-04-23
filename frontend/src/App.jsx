@@ -14,6 +14,8 @@ import Calorie from "./pages/Calorie/Calorie";
 import ResetPassword from "./pages/ResetPassword/ResetPassword";
 import ErrorBoundary from "./components/ErrorBoundary/ErrorBoundary";
 import RiderDashboard from "./pages/RiderDashboard/RiderDashboard";
+import Deliveries from "./pages/Deliveries/Deliveries";
+import Earnings from "./pages/Earnings/Earnings";
 import Track from "./pages/Track/Track";
 import Profile from "./pages/Profile/Profile";
 import PrivacyPolicy from "./pages/PrivacyPolicy/PrivacyPolicy";
@@ -82,8 +84,10 @@ const App = () => {
             <Route path="/myorders" element={<MyOrders />} />
             <Route path="/calorie" element={<Calorie />} />
             <Route path="/reset-password/:token" element={<ResetPassword />} />
-            <Route path="/rider-dashboard" element={<RiderDashboard />} />
-            <Route path="/rider" element={<RiderDashboard />} />
+            <Route path="/rider-dashboard" element={<ProtectedRiderRoute><RiderDashboard /></ProtectedRiderRoute>} />
+            <Route path="/rider" element={<Navigate to="/rider-dashboard" replace />} />
+            <Route path="/deliveries" element={<ProtectedRiderRoute><Deliveries /></ProtectedRiderRoute>} />
+            <Route path="/earnings" element={<ProtectedRiderRoute><Earnings /></ProtectedRiderRoute>} />
             <Route path="/track/:orderId" element={<Track />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
