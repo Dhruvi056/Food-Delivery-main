@@ -26,3 +26,12 @@ coverage/
 
 # Cursor local artifacts
 .cursor/
+
+# Testing and debug output
+**/tests/
+test-results/
+playwright-report/
+backend/*.txt
+backend/test-*.pdf
+backend/test_*.js
+backend/get_test_token.js
